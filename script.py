@@ -6,10 +6,10 @@ import os
 import ast
 
 # ============================================================
-# CẤU HÌNH HỆ THỐNG FILE (3 TẦNG CHUẨN ĐÚNG MẪU)
+# CẤU HÌNH HỆ THỐNG FILE (3 TẦNG ĐÚNG CẤU TRÚC MẪU)
 # ============================================================
-FILE_RAW        = "tiki_raw_data.xlsx"         # Ghi đè dữ liệu thô hôm nay
-FILE_CLEAN      = "tiki_clean_data.xlsx"       # Ghi đè dữ liệu sạch hôm nay
+FILE_RAW        = "tiki_raw_data.xlsx"         # Ghi đè dữ liệu thô gốc hôm nay
+FILE_CLEAN      = "tiki_clean_data.xlsx"       # Ghi đè dữ liệu làm sạch hôm nay
 FILE_HISTORICAL = "tiki_historical_data.xlsx"  # Gom dữ liệu sạch cũ (Tối đa 5 ngày)
 
 MAX_PAGES   = 10
@@ -59,7 +59,7 @@ def safe_eval_list(val):
     except:
         return []
 
-# Bảng map hỗ trợ phân loại cây danh mục
+# Cây danh mục L2 hỗ trợ bóc tách tự động khi API thiếu trường amp_
 CATEGORY_L2_MAP = {
     917: "Áo nữ", 921: "Đầm nữ", 929: "Quần nữ", 933: "Áo khoác nữ", 930: "Chân váy",
     932: "Áo nam", 934: "Quần nam", 938: "Áo khoác nam", 5351: "Đồ lót nam",
@@ -73,6 +73,7 @@ CATEGORY_L2_MAP = {
 # TIẾN TRÌNH XỬ LÝ CHÍNH
 # ============================================================
 def main():
+    # Cấu hình thời gian chuẩn múi giờ Việt Nam
     time_vn = datetime.utcnow() + timedelta(hours=7)
     ngay_hom_nay = time_vn.strftime("%Y-%m-%d")
     gio_hom_nay  = "07:00:00" 
@@ -113,7 +114,7 @@ def main():
         return
 
     # --------------------------------------------------------
-    # BƯỚC 1: GHI ĐÈ FILE RAW DATA (Bảo toàn 100% cột gốc thô)
+    # BƯỚC 1: GHI ĐÈ FILE RAW DATA (Bảo toàn 100% cột gốc)
     # --------------------------------------------------------
     processed_raw = []
     for item in raw_records:
@@ -136,9 +137,11 @@ def main():
     for item in raw_records:
         price = item.get("price", 0)
         original_price = item.get("original_price", price)
-        discount_amount = original_price - price 
         
-        # Số lượng đã bán
+        # Sửa logic số tiền giảm giá: Nếu giá gốc lớn hơn giá hiện tại thì lấy hiệu số (ra dương)
+        discount_amount = original_price - price if original_price > price else 0
+        
+        # Xử lý bóc tách số lượng đã bán an toàn
         sold_count = 0
         if item.get("quantity_sold_value") is not None:
             try:
@@ -159,7 +162,7 @@ def main():
         
         estimated_revenue = price * sold_count
         
-        # Bóc tách Cây danh mục L2, L3
+        # Bóc tách Cây danh mục L2, L3 an toàn
         cat_path = item.get("primary_category_path", "")
         cat_ids = [int(x) for x in cat_path.split("/") if x.isdigit()] if isinstance(cat_path, str) else []
         
@@ -179,6 +182,7 @@ def main():
         is_freeship = "freeship_xtra" in badge_codes or "freeship" in str(badges_list).lower()
         is_top_brand = "top_brand" in badge_codes
         
+        # FIX TRIỆT ĐỂ LỖI LENGTH: Đảm bảo mọi cột đều có giá trị bằng cách khai báo tường minh rõ ràng
         clean_rec = {
             "product_id":             item.get("id"),
             "product_name":           item.get("name"),
@@ -208,8 +212,8 @@ def main():
             "is_imported":            False,
             "is_authentic":           True,
             "is_top_brand":           bool(is_top_brand),
-            "date_collected":         item.get("date_collected"),
-            "time_collected":         item.get("time_collected")
+            "date_collected":         str(ngay_hom_nay), # Gán trực tiếp giá trị chuỗi cố định tránh lệch độ dài danh sách
+            "time_collected":         str(gio_hom_nay)   # Gán trực tiếp giá trị chuỗi cố định tránh lệch độ dài danh sách
         }
         clean_records.append(clean_rec)
         
@@ -234,7 +238,7 @@ def main():
             except Exception:
                 pass
                 
-        # Khóa an toàn: Làm sạch file lịch sử nếu dính lỗi lệch cột cũ
+        # Khóa an toàn: Làm sạch file lịch sử nếu dính lỗi lệch cột từ các lượt chạy lỗi cũ
         if not df_history_old.empty and "product_id" not in df_history_old.columns:
             print("⚠️ Phát hiện file history cũ bị sai cấu trúc cột, tiến hành làm mới kho lịch sử.")
             df_history_old = pd.DataFrame()
@@ -250,7 +254,7 @@ def main():
         if "product_id" in df_history_combined.columns and "date_collected" in df_history_combined.columns:
             df_history_combined = df_history_combined.drop_duplicates(subset=["date_collected", "product_id"]).reset_index(drop=True)
         
-        # Giới hạn giữ tối đa 5 ngày gần nhất
+        # Giới hạn kho dữ liệu lịch sử tối đa 5 ngày gần nhất
         unique_days = sorted(df_history_combined["date_collected"].unique(), reverse=True)
         top_5_days  = unique_days[:5]
         df_history_final = df_history_combined[df_history_combined["date_collected"].isin(top_5_days)]
