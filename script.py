@@ -1,94 +1,149 @@
+import requests
 import pandas as pd
+import time
 from datetime import datetime
 import os
 
-# 1. Khai báo các tên file (giữ chính xác theo tên file trên GitHub của bạn)
-FILE_CLEAN = "tiki_clean_data.xlsx"
+# ============================================================
+# CẤU HÌNH HỆ THỐNG FILE
+# ============================================================
 FILE_HISTORICAL = "tiki_historical_data.xlsx"
 
+MAX_PAGES   = 10        # Mỗi category lấy tối đa 10 trang
+PAGE_SIZE   = 40
+DELAY       = 1.2       # Giây chờ để tránh bị block
 
-def cao_du_lieu_tiki_cua_ban():
-    """
-    HÀM CÀO DỮ LIỆU TIKI CỦA BẠN
-    Nhiệm vụ của bạn: Hãy dán toàn bộ đoạn code cào Tiki hiện tại của bạn vào ĐÂY.
-    Lưu ý: Kết quả cào cuối cùng phải trả về một DataFrame (ví dụ: df_ket_qua_cao).
-    """
-    # =========================================================================
-    # 💥 BẮT ĐẦU: DÁN CODE CÀO TIKI CỦA BẠN XUỐNG DƯỚI DÒNG NÀY 💥
-    
-    # (Đoạn code dưới đây chỉ là mẫu minh họa, bạn hãy xóa đi và dán code của bạn vào)
-    print("Đang chạy hệ thống cào dữ liệu Tiki...")
-    
-    df_ket_qua_cao = pd.DataFrame({
-        "Ten_SanPham": ["Sách Đắc Nhân Tâm bản đẹp", "Chuột máy tính Logitech B100"],
-        "Gia_Ban": [75000, 120000],
-        # Nếu code cào của bạn chưa có cột "Ngay", hệ thống phía dưới sẽ tự bù vào.
-    })
-    
-    # 💥 KẾT THÚC ĐOẠN DÁN CODE CÀO CỦA BẠN 💥
-    # =========================================================================
-    return df_ket_qua_cao
+CATEGORIES = {
+    "Thời trang nữ":         915,
+    "Thời trang nam":        931,
+    "Giày dép nữ":           1686,
+    "Giày dép nam":          1685,
+    "Túi xách & Ví":         27498,
+    "Phụ kiện thời trang":   4246,
+}
 
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8",
+    "Referer": "https://tiki.vn/",
+    "x-guest-token": "FsRqGxDTtfbxFBmMnHcDpVxJHmzHLRME",
+}
 
-def main():
-    # --- Bước 1: Đọc cấu trúc các cột chuẩn từ file clean ---
-    if not os.path.exists(FILE_CLEAN):
-        print(f"❌ Lỗi: Không tìm thấy file khuôn mẫu '{FILE_CLEAN}' trên hệ thống GitHub!")
-        return
-        
-    df_clean = pd.read_excel(FILE_CLEAN)
-    cac_cot_chuan = df_clean.columns.tolist()
-    print(f"🤖 Đã lấy cấu trúc chuẩn gồm {len(cac_cot_chuan)} cột từ file clean.")
-
-    # --- Bước 2: Chạy hàm cào dữ liệu mới của ngày hôm nay ---
+# ============================================================
+# HÀM CÀO DỮ LIỆU GỐC (RAW DATA)
+# ============================================================
+def fetch_products(category_id: int, page: int) -> dict:
+    url = "https://tiki.vn/api/personalish/v1/blocks/listings"
+    params = {
+        "limit":        PAGE_SIZE,
+        "page":         page,
+        "category":     category_id,
+        "sort":         "top_seller",
+        "urlKey":       "thoi-trang-phu-kien",
+    }
     try:
-        df_raw_today = cao_du_lieu_tiki_cua_ban()
+        resp = requests.get(url, params=params, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+        return resp.json()
     except Exception as e:
-        print(f"❌ Lỗi trong quá trình cào dữ liệu: {e}")
+        print(f"  ⚠️ Lỗi request trang {page}: {e}")
+        return {}
+
+def flatten_raw_item(item: dict, category_name: str) -> dict:
+    """
+    Giữ nguyên toàn bộ cấu trúc dict gốc từ Postman.
+    Chuyển đổi các danh sách hoặc dict phức tạp (như badges_new, visible_impression_info) 
+    thành chuỗi text/json để lưu trữ an toàn vào Excel mà không bị mất dữ liệu.
+    """
+    # Tạo một bản sao để tránh ghi đè trực tiếp lên dữ liệu gốc
+    raw_data = item.copy()
+    
+    # Thêm các trường phân loại và thời gian cào dữ liệu vào đầu bản ghi
+    record = {
+        "Ngay": datetime.now().strftime("%Y-%m-%d"),
+        "Gio": datetime.now().strftime("%H:%M:%S"),
+        "danh_muc_cao": category_name
+    }
+    
+    # Duyệt và ép kiểu chuỗi đối với các trường phức tạp để Excel không bị lỗi cấu trúc
+    for key, value in raw_data.items():
+        if isinstance(value, (dict, list)):
+            record[key] = str(value)  # Lưu trữ trọn vẹn dưới dạng text JSON
+        else:
+            record[key] = value
+            
+    return record
+
+# ============================================================
+# TIẾN TRÌNH CHÍNH (MAIN)
+# ============================================================
+def main():
+    all_records = []
+    seen_ids    = set()
+    
+    print("🤖 Bắt đầu thu thập TOÀN BỘ dữ liệu gốc từ Tiki...")
+    
+    for cat_name, cat_id in CATEGORIES.items():
+        print(f"-> Đang quét ngành hàng: {cat_name}")
+        for page in range(1, MAX_PAGES + 1):
+            data = fetch_products(cat_id, page)
+            if not data:
+                break
+            items = data.get("data", [])
+            if not items:
+                break
+                
+            for item in items:
+                pid = item.get("id")
+                if pid and pid not in seen_ids:
+                    seen_ids.add(pid)
+                    # Thu thập toàn bộ các trường JSON chuẩn Postman
+                    all_records.append(flatten_raw_item(item, cat_name))
+            
+            paging = data.get("paging", {})
+            total  = paging.get("total", 0)
+            if page * PAGE_SIZE >= total:
+                break
+            time.sleep(DELAY)
+            
+    if not all_records:
+        print("❌ Không lấy được dữ liệu raw nào!")
         return
 
-    # Lấy ngày hôm nay theo định dạng chuỗi chuẩn YYYY-MM-DD
-    ngay_hom_nay = datetime.now().strftime("%Y-%m-%d")
+    # Chuyển đổi dữ liệu ngày hôm nay thành DataFrame
+    df_today = pd.DataFrame(all_records)
+    print(f"✅ Đã đóng gói xong {len(df_today)} sản phẩm với đầy đủ trường dữ liệu gốc.")
 
-    # Nếu dữ liệu cào về chưa có sẵn cột ngày, tự động tạo để thuật toán chạy không lỗi
-    if 'Ngay' not in df_raw_today.columns:
-        df_raw_today['Ngay'] = ngay_hom_nay
-
-    # --- Bước 3: Tự động ép chuẩn các trường dữ liệu ---
-    # (Cột thừa tự xóa, cột thiếu tự thêm trống, thứ tự cột tự sắp xếp khớp 100% với file clean)
-    df_today_standardized = df_raw_today.reindex(columns=cac_cot_chuan)
-    
-    # Điền ngày hôm nay vào cột 'Ngay' nếu cột này đang bị trống sau khi ép chuẩn
-    if 'Ngay' in df_today_standardized.columns:
-        df_today_standardized['Ngay'] = df_today_standardized['Ngay'].fillna(ngay_hom_nay)
-
-    # --- Bước 4: Đọc file lịch sử và gộp dữ liệu mới vào ---
+    # --- TIẾN HÀNH GỘP LỊCH SỬ & GIỚI HẠN 5 NGÀY GẦN NHẤT ---
     if os.path.exists(FILE_HISTORICAL):
-        df_historical = pd.read_excel(FILE_HISTORICAL)
-        # Gộp dữ liệu cũ và dữ liệu mới cào lại thành một bảng chung
-        df_tong = pd.concat([df_historical, df_today_standardized], ignore_index=True)
-        print("👉 Đã gộp dữ liệu mới vào file lịch sử.")
+        try:
+            df_historical = pd.read_excel(FILE_HISTORICAL)
+            # Gộp dữ liệu cũ và mới lại với nhau
+            df_tong = pd.concat([df_historical, df_today], ignore_index=True)
+            # Xóa trùng lặp sản phẩm trùng nhau trong cùng một ngày cào dữ liệu
+            df_tong = df_tong.drop_duplicates(subset=["Ngay", "id"]).reset_index(drop=True)
+        except Exception as e:
+            print(f"⚠️ Không đọc được file lịch sử cũ (có thể do đổi cấu trúc cột), tiến hành tạo mới. Chi tiết: {e}")
+            df_tong = df_today
     else:
-        df_tong = df_today_standardized
-        print("👉 Chưa có file lịch sử cũ, hệ thống tự tạo file lịch sử mới.")
+        df_tong = df_today
 
-    # --- Bước 5: Giới hạn dữ liệu trong vòng 5 ngày gần nhất ---
-    # Chuẩn hóa cột Ngay về dạng chuỗi YYYY-MM-DD để tránh lỗi lệch định dạng
-    df_tong['Ngay'] = pd.to_datetime(df_tong['Ngay']).dt.strftime('%Y-%m-%d')
+    # Đồng bộ lại định dạng chuỗi ngày tháng YYYY-MM-DD
+    df_tong["Ngay"] = pd.to_datetime(df_tong["Ngay"]).dt.strftime('%Y-%m-%d')
     
-    # Tìm tất cả các ngày duy nhất đang có và xếp từ mới nhất đến cũ nhất
-    danh_sach_ngay = sorted(df_tong['Ngay'].unique(), reverse=True)
-    
-    # Giữ lại tối đa 5 ngày mới nhất (Ngày thứ 6 trở đi sẽ tự động bị loại bỏ)
+    # Lọc lấy danh sách 5 ngày gần đây nhất
+    danh_sach_ngay = sorted(df_tong["Ngay"].unique(), reverse=True)
     top_5_ngay = danh_sach_ngay[:5]
-    print(f"📅 Danh sách 5 ngày được giữ lại trong file: {top_5_ngay}")
-
-    # Lọc lại bảng dữ liệu tổng theo danh sách 5 ngày này
-    df_cuoi_cung = df_tong[df_tong['Ngay'].isin(top_5_ngay)]
-
-    # --- Bước 6: Ghi đè file dữ liệu mới lên GitHub ---
+    df_cuoi_cung = df_tong[df_tong["Ngay"].isin(top_5_ngay)]
+    
+    # Xuất dữ liệu lưu lại trực tiếp lên GitHub
     df_cuoi_cung.to_excel(FILE_HISTORICAL, index=False)
-    print(f"✅ Thành công! File '{FILE_HISTORICAL}' đã được cập nhật chuẩn hóa lúc 8h sáng.")
+    print(f"💾 Đã ghi đè file '{FILE_HISTORICAL}' thành công! (Dữ liệu lưu giữ của các ngày: {top_5_ngay})")
 
 
 if __name__ == "__main__":
