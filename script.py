@@ -6,10 +6,10 @@ import os
 import ast
 
 # ============================================================
-# CẤU HÌNH HỆ THỐNG FILE (3 TẦNG ĐÚNG CẤU TRÚC MẪU)
+# CẤU HÌNH HỆ THỐNG FILE (3 TẦNG CHUẨN ĐÚNG MẪU)
 # ============================================================
-FILE_RAW        = "tiki_raw_data.xlsx"         # Ghi đè dữ liệu thô gốc hôm nay
-FILE_CLEAN      = "tiki_clean_data.xlsx"       # Ghi đè dữ liệu làm sạch hôm nay
+FILE_RAW        = "tiki_raw_data.xlsx"         # Ghi đè dữ liệu thô hôm nay
+FILE_CLEAN      = "tiki_clean_data.xlsx"       # Ghi đè dữ liệu sạch hôm nay
 FILE_HISTORICAL = "tiki_historical_data.xlsx"  # Gom dữ liệu sạch cũ (Tối đa 5 ngày)
 
 MAX_PAGES   = 10
@@ -59,7 +59,7 @@ def safe_eval_list(val):
     except:
         return []
 
-# Cây danh mục L2 hỗ trợ bóc tách tự động khi API thiếu trường amp_
+# Bảng map hỗ trợ phân loại danh mục cấp 2 chủ động
 CATEGORY_L2_MAP = {
     917: "Áo nữ", 921: "Đầm nữ", 929: "Quần nữ", 933: "Áo khoác nữ", 930: "Chân váy",
     932: "Áo nam", 934: "Quần nam", 938: "Áo khoác nam", 5351: "Đồ lót nam",
@@ -73,7 +73,6 @@ CATEGORY_L2_MAP = {
 # TIẾN TRÌNH XỬ LÝ CHÍNH
 # ============================================================
 def main():
-    # Cấu hình thời gian chuẩn múi giờ Việt Nam
     time_vn = datetime.utcnow() + timedelta(hours=7)
     ngay_hom_nay = time_vn.strftime("%Y-%m-%d")
     gio_hom_nay  = "07:00:00" 
@@ -114,7 +113,7 @@ def main():
         return
 
     # --------------------------------------------------------
-    # BƯỚC 1: GHI ĐÈ FILE RAW DATA (Bảo toàn 100% cột gốc)
+    # BƯỚC 1: GHI ĐÈ FILE RAW DATA (Bảo toàn 100% cột gốc thô)
     # --------------------------------------------------------
     processed_raw = []
     for item in raw_records:
@@ -137,9 +136,7 @@ def main():
     for item in raw_records:
         price = item.get("price", 0)
         original_price = item.get("original_price", price)
-        
-        # Sửa logic số tiền giảm giá: Nếu giá gốc lớn hơn giá hiện tại thì lấy hiệu số (ra dương)
-        discount_amount = original_price - price if original_price > price else 0
+        discount_amount = original_price - price 
         
         # Xử lý bóc tách số lượng đã bán an toàn
         sold_count = 0
@@ -182,39 +179,39 @@ def main():
         is_freeship = "freeship_xtra" in badge_codes or "freeship" in str(badges_list).lower()
         is_top_brand = "top_brand" in badge_codes
         
-        # FIX TRIỆT ĐỂ LỖI LENGTH: Đảm bảo mọi cột đều có giá trị bằng cách khai báo tường minh rõ ràng
-        clean_rec = {
-            "product_id":             item.get("id"),
-            "product_name":           item.get("name"),
-            "brand_name":             item.get("brand_name", "OEM"),
-            "category_l1":            item.get("category_main"),
-            "category_l2":            category_l2,
-            "category_l3":            category_l2,
-            "primary_category":       item.get("category_main"),
-            "price":                  price,
-            "original_price":         original_price,
-            "discount_amount":        discount_amount,
-            "discount_percent":       item.get("discount_rate", 0),
-            "rating":                 item.get("rating_average", 0),
-            "review_count":           item.get("review_count", 0),
-            "sold_count":             sold_count,
-            "favourite_count":        item.get("favourite_count", 0),
-            "estimated_revenue":      estimated_revenue,
-            "seller_id":              item.get("seller_id", 0),
-            "seller_type":            "OFFICIAL_STORE" if is_official else "NONE",
-            "is_official_store":      bool(is_official),
-            "tiki_verified":          bool(tiki_verified),
-            "is_tiki_now":            bool(is_tiki_now),
-            "is_freeship":            bool(is_freeship),
-            "delivery_estimate_days": 1 if is_tiki_now else 3,
-            "order_route":            "same_province",
-            "origin":                 "Việt Nam",
-            "is_imported":            False,
-            "is_authentic":           True,
-            "is_top_brand":           bool(is_top_brand),
-            "date_collected":         str(ngay_hom_nay), # Gán trực tiếp giá trị chuỗi cố định tránh lệch độ dài danh sách
-            "time_collected":         str(gio_hom_nay)   # Gán trực tiếp giá trị chuỗi cố định tránh lệch độ dài danh sách
-        }
+        # GIẢI PHÁP TRIỆT ĐỂ: Tạo khung rỗng cố định có đúng 30 cột, sau đó gán giá trị vào từng cột
+        clean_rec = {}
+        clean_rec["product_id"]             = item.get("id")
+        clean_rec["product_name"]           = item.get("name", "")
+        clean_rec["brand_name"]             = item.get("brand_name", "OEM")
+        clean_rec["category_l1"]            = item.get("category_main")
+        clean_rec["category_l2"]            = category_l2
+        clean_rec["category_l3"]            = category_l2
+        clean_rec["primary_category"]       = item.get("category_main")
+        clean_rec["price"]                  = price
+        clean_rec["original_price"]         = original_price
+        clean_rec["discount_amount"]        = discount_amount
+        clean_rec["discount_percent"]       = item.get("discount_rate", 0)
+        clean_rec["rating"]                 = item.get("rating_average", 0)
+        clean_rec["review_count"]           = item.get("review_count", 0)
+        clean_rec["sold_count"]             = sold_count
+        clean_rec["favourite_count"]        = item.get("favourite_count", 0)
+        clean_rec["estimated_revenue"]      = estimated_revenue
+        clean_rec["seller_id"]              = item.get("seller_id", 0)
+        clean_rec["seller_type"]            = "OFFICIAL_STORE" if is_official else "NONE"
+        clean_rec["is_official_store"]      = bool(is_official)
+        clean_rec["tiki_verified"]          = bool(tiki_verified)
+        clean_rec["is_tiki_now"]            = bool(is_tiki_now)
+        clean_rec["is_freeship"]            = bool(is_freeship)
+        clean_rec["delivery_estimate_days"] = 1 if is_tiki_now else 3
+        clean_rec["order_route"]            = "same_province"
+        clean_rec["origin"]                 = "Việt Nam"
+        clean_rec["is_imported"]            = False
+        clean_rec["is_authentic"]           = True
+        clean_rec["is_top_brand"]           = bool(is_top_brand)
+        clean_rec["date_collected"]         = str(ngay_hom_nay)
+        clean_rec["time_collected"]         = str(gio_hom_nay)
+        
         clean_records.append(clean_rec)
         
     df_clean_today = pd.DataFrame(clean_records)
@@ -238,7 +235,7 @@ def main():
             except Exception:
                 pass
                 
-        # Khóa an toàn: Làm sạch file lịch sử nếu dính lỗi lệch cột từ các lượt chạy lỗi cũ
+        # Khóa an toàn: Làm sạch file lịch sử nếu dính lỗi lệch cột cũ
         if not df_history_old.empty and "product_id" not in df_history_old.columns:
             print("⚠️ Phát hiện file history cũ bị sai cấu trúc cột, tiến hành làm mới kho lịch sử.")
             df_history_old = pd.DataFrame()
