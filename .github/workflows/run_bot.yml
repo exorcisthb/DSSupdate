@@ -29,6 +29,6 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action Bot"
-        git add tiki_raw_data.xlsx tiki_clean_data.xlsx tiki_historical_data.xlsx
+        git add tiki_raw_data.xlsx tiki_clean_data.xlsx tiki_historical_data.xlsx tiki_changes_report.xlsx
         git commit -m "Bot tu dong cap nhat ngay $(date +'%Y-%m-%d')" || exit 0
         git push

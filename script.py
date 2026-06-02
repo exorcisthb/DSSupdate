@@ -6,11 +6,12 @@ import os
 import ast
 
 # ============================================================
-# CẤU HÌNH HỆ THỐNG FILE (3 TẦNG CHUẨN ĐÚNG MẪU)
+# CẤU HÌNH HỆ THỐNG FILE (4 TẦNG CHUẨN ĐÚNG MẪU)
 # ============================================================
 FILE_RAW        = "tiki_raw_data.xlsx"         # Ghi đè dữ liệu thô hôm nay
 FILE_CLEAN      = "tiki_clean_data.xlsx"       # Ghi đè dữ liệu sạch hôm nay
 FILE_HISTORICAL = "tiki_historical_data.xlsx"  # Gom dữ liệu sạch cũ (Tối đa 5 ngày)
+FILE_CHANGES    = "tiki_changes_report.xlsx"   # Báo cáo thay đổi so với ngày hôm qua
 
 MAX_PAGES   = 10
 PAGE_SIZE   = 40
@@ -32,9 +33,9 @@ HEADERS = {
     "Referer": "https://tiki.vn/",
 }
 
-# Định nghĩa chuẩn xác danh sách 30 cột cần có cho file Clean và History
+# Định nghĩa chuẩn xác danh sách 31 cột cần có cho file Clean và History (thêm product_link)
 REQUIRED_COLUMNS = [
-    "product_id", "product_name", "brand_name", "category_l1", "category_l2",
+    "product_id", "product_name", "product_link", "brand_name", "category_l1", "category_l2",
     "category_l3", "primary_category", "price", "original_price", "discount_amount",
     "discount_percent", "rating", "review_count", "sold_count", "favourite_count",
     "estimated_revenue", "seller_id", "seller_type", "is_official_store", "tiki_verified",
@@ -190,10 +191,16 @@ def main():
         is_freeship = "freeship_xtra" in badge_codes or "freeship" in str(badges_list).lower()
         is_top_brand = "top_brand" in badge_codes
         
+        # Tạo link sản phẩm từ product_id và url_key
+        product_id = item.get("id")
+        url_key = item.get("url_key", "")
+        product_link = f"https://tiki.vn/{url_key}-p{product_id}.html" if url_key else f"https://tiki.vn/product-p{product_id}.html"
+        
         # Tạo dữ liệu bằng DataFrame từ đầu để loại trừ tuyệt đối lỗi lệch chiều dài mảng
         clean_rec = {col: None for col in REQUIRED_COLUMNS}
-        clean_rec["product_id"]             = item.get("id")
+        clean_rec["product_id"]             = product_id
         clean_rec["product_name"]           = item.get("name", "")
+        clean_rec["product_link"]           = product_link
         clean_rec["brand_name"]             = item.get("brand_name", "OEM")
         clean_rec["category_l1"]            = item.get("category_main")
         clean_rec["category_l2"]            = category_l2
@@ -273,10 +280,148 @@ def main():
         print(f"💾 2. Kho lịch sử '{FILE_HISTORICAL}' đã cập nhật an toàn. (Lưu giữ: {top_5_days})")
 
     # --------------------------------------------------------
-    # BƯỚC 4: GHI ĐÈ FILE CLEAN DATA MỚI NHẤT HÔM NAY (Đúng 30 cột)
+    # BƯỚC 4: SO SÁNH VÀ TẠO BÁO CÁO THAY ĐỔI
+    # --------------------------------------------------------
+    changes_data = []
+    
+    if not df_clean_old.empty:
+        print("📊 Đang phân tích thay đổi so với ngày hôm qua...")
+        
+        # Chuyển sang dict để tra cứu nhanh
+        old_products = {}
+        for _, row in df_clean_old.iterrows():
+            pid = row.get("product_id")
+            if pid:
+                old_products[pid] = row
+        
+        # So sánh từng sản phẩm
+        for _, today_row in df_clean_today.iterrows():
+            pid = today_row.get("product_id")
+            if not pid:
+                continue
+                
+            if pid in old_products:
+                old_row = old_products[pid]
+                changes = {}
+                
+                # So sánh các trường quan trọng
+                price_old = old_row.get("price", 0)
+                price_new = today_row.get("price", 0)
+                sold_old = old_row.get("sold_count", 0)
+                sold_new = today_row.get("sold_count", 0)
+                rating_old = old_row.get("rating", 0)
+                rating_new = today_row.get("rating", 0)
+                review_old = old_row.get("review_count", 0)
+                review_new = today_row.get("review_count", 0)
+                
+                # Chỉ ghi nhận nếu có thay đổi
+                if (price_old != price_new or sold_old != sold_new or 
+                    rating_old != rating_new or review_old != review_new):
+                    
+                    changes["product_id"] = pid
+                    changes["product_name"] = today_row.get("product_name", "")
+                    changes["product_link"] = today_row.get("product_link", "")
+                    changes["category"] = today_row.get("category_l1", "")
+                    changes["brand_name"] = today_row.get("brand_name", "")
+                    
+                    # Giá
+                    changes["price_old"] = price_old
+                    changes["price_new"] = price_new
+                    changes["price_change"] = price_new - price_old
+                    changes["price_change_percent"] = round((price_new - price_old) / price_old * 100, 2) if price_old > 0 else 0
+                    
+                    # Số lượng bán
+                    changes["sold_count_old"] = sold_old
+                    changes["sold_count_new"] = sold_new
+                    changes["sold_count_increase"] = sold_new - sold_old
+                    
+                    # Doanh thu ước tính mới tăng
+                    changes["revenue_increase"] = (sold_new - sold_old) * price_new
+                    
+                    # Đánh giá
+                    changes["rating_old"] = rating_old
+                    changes["rating_new"] = rating_new
+                    changes["rating_change"] = round(rating_new - rating_old, 2)
+                    
+                    # Số lượng review
+                    changes["review_count_old"] = review_old
+                    changes["review_count_new"] = review_new
+                    changes["review_count_increase"] = review_new - review_old
+                    
+                    changes["date_compared"] = str(ngay_hom_nay)
+                    changes["status"] = "UPDATED"
+                    
+                    changes_data.append(changes)
+            else:
+                # Sản phẩm mới
+                changes_data.append({
+                    "product_id": pid,
+                    "product_name": today_row.get("product_name", ""),
+                    "product_link": today_row.get("product_link", ""),
+                    "category": today_row.get("category_l1", ""),
+                    "brand_name": today_row.get("brand_name", ""),
+                    "price_old": 0,
+                    "price_new": today_row.get("price", 0),
+                    "price_change": today_row.get("price", 0),
+                    "price_change_percent": 0,
+                    "sold_count_old": 0,
+                    "sold_count_new": today_row.get("sold_count", 0),
+                    "sold_count_increase": today_row.get("sold_count", 0),
+                    "revenue_increase": today_row.get("estimated_revenue", 0),
+                    "rating_old": 0,
+                    "rating_new": today_row.get("rating", 0),
+                    "rating_change": today_row.get("rating", 0),
+                    "review_count_old": 0,
+                    "review_count_new": today_row.get("review_count", 0),
+                    "review_count_increase": today_row.get("review_count", 0),
+                    "date_compared": str(ngay_hom_nay),
+                    "status": "NEW"
+                })
+        
+        # Tìm sản phẩm bị xóa/không còn
+        today_ids = set(df_clean_today["product_id"].values)
+        for pid, old_row in old_products.items():
+            if pid not in today_ids:
+                changes_data.append({
+                    "product_id": pid,
+                    "product_name": old_row.get("product_name", ""),
+                    "product_link": old_row.get("product_link", ""),
+                    "category": old_row.get("category_l1", ""),
+                    "brand_name": old_row.get("brand_name", ""),
+                    "price_old": old_row.get("price", 0),
+                    "price_new": 0,
+                    "price_change": -old_row.get("price", 0),
+                    "price_change_percent": -100,
+                    "sold_count_old": old_row.get("sold_count", 0),
+                    "sold_count_new": 0,
+                    "sold_count_increase": 0,
+                    "revenue_increase": 0,
+                    "rating_old": old_row.get("rating", 0),
+                    "rating_new": 0,
+                    "rating_change": -old_row.get("rating", 0),
+                    "review_count_old": old_row.get("review_count", 0),
+                    "review_count_new": 0,
+                    "review_count_increase": 0,
+                    "date_compared": str(ngay_hom_nay),
+                    "status": "REMOVED"
+                })
+        
+        if changes_data:
+            df_changes = pd.DataFrame(changes_data)
+            # Sắp xếp theo doanh thu tăng giảm nhiều nhất
+            df_changes = df_changes.sort_values("revenue_increase", ascending=False)
+            df_changes.to_excel(FILE_CHANGES, index=False)
+            print(f"📈 4. Đã tạo báo cáo thay đổi '{FILE_CHANGES}' với {len(changes_data)} thay đổi!")
+        else:
+            print("ℹ️  Không có thay đổi nào so với ngày hôm qua.")
+    else:
+        print("ℹ️  Không có dữ liệu ngày hôm qua để so sánh.")
+
+    # --------------------------------------------------------
+    # BƯỚC 5: GHI ĐÈ FILE CLEAN DATA MỚI NHẤT HÔM NAY (Đúng 31 cột)
     # --------------------------------------------------------
     df_clean_today.to_excel(FILE_CLEAN, index=False)
-    print(f"🎯 3. Đã làm sạch và cập nhật thành công dữ liệu mới vào file sạch '{FILE_CLEAN}'!")
+    print(f"🎯 5. Đã làm sạch và cập nhật thành công dữ liệu mới vào file sạch '{FILE_CLEAN}'!")
 
 
 if __name__ == "__main__":
