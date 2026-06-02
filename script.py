@@ -6,7 +6,7 @@ import os
 import ast
 
 # ============================================================
-# CẤU HÌNH HỆ THỐNG FILE (3 TẦNG CHUẨN)
+# CẤU HÌNH HỆ THỐNG FILE (3 TẦNG CHUẨN ĐÚNG MẪU)
 # ============================================================
 FILE_RAW        = "tiki_raw_data.xlsx"         # Ghi đè dữ liệu thô hôm nay
 FILE_CLEAN      = "tiki_clean_data.xlsx"       # Ghi đè dữ liệu sạch hôm nay
@@ -59,7 +59,7 @@ def safe_eval_list(val):
     except:
         return []
 
-# Bảng map bổ trợ phân loại danh mục cấp 2
+# Bảng map hỗ trợ phân loại cây danh mục
 CATEGORY_L2_MAP = {
     917: "Áo nữ", 921: "Đầm nữ", 929: "Quần nữ", 933: "Áo khoác nữ", 930: "Chân váy",
     932: "Áo nam", 934: "Quần nam", 938: "Áo khoác nam", 5351: "Đồ lót nam",
@@ -113,7 +113,7 @@ def main():
         return
 
     # --------------------------------------------------------
-    # BƯỚC 1: GHI ĐÈ FILE RAW DATA (Bảo toàn 100% cột gốc)
+    # BƯỚC 1: GHI ĐÈ FILE RAW DATA (Bảo toàn 100% cột gốc thô)
     # --------------------------------------------------------
     processed_raw = []
     for item in raw_records:
@@ -138,7 +138,7 @@ def main():
         original_price = item.get("original_price", price)
         discount_amount = original_price - price 
         
-        # Xử lý bóc tách số lượng đã bán an toàn
+        # Số lượng đã bán
         sold_count = 0
         if item.get("quantity_sold_value") is not None:
             try:
@@ -159,7 +159,7 @@ def main():
         
         estimated_revenue = price * sold_count
         
-        # Bóc tách Cây danh mục L2, L3 an toàn
+        # Bóc tách Cây danh mục L2, L3
         cat_path = item.get("primary_category_path", "")
         cat_ids = [int(x) for x in cat_path.split("/") if x.isdigit()] if isinstance(cat_path, str) else []
         
@@ -234,7 +234,7 @@ def main():
             except Exception:
                 pass
                 
-        # Kiểm tra cấu trúc an toàn bảo vệ lỗi xung đột cột giữa các phiên bản cũ
+        # Khóa an toàn: Làm sạch file lịch sử nếu dính lỗi lệch cột cũ
         if not df_history_old.empty and "product_id" not in df_history_old.columns:
             print("⚠️ Phát hiện file history cũ bị sai cấu trúc cột, tiến hành làm mới kho lịch sử.")
             df_history_old = pd.DataFrame()
@@ -247,11 +247,10 @@ def main():
         df_history_combined = df_history_combined.dropna(subset=["date_collected"])
         df_history_combined["date_collected"] = df_history_combined["date_collected"].dt.strftime('%Y-%m-%d')
         
-        # Chỉ xử lý drop_duplicates khi chắc chắn có đủ cột đích
         if "product_id" in df_history_combined.columns and "date_collected" in df_history_combined.columns:
             df_history_combined = df_history_combined.drop_duplicates(subset=["date_collected", "product_id"]).reset_index(drop=True)
         
-        # Giới hạn kho dữ liệu lịch sử tối đa 5 ngày gần nhất
+        # Giới hạn giữ tối đa 5 ngày gần nhất
         unique_days = sorted(df_history_combined["date_collected"].unique(), reverse=True)
         top_5_days  = unique_days[:5]
         df_history_final = df_history_combined[df_history_combined["date_collected"].isin(top_5_days)]
@@ -264,6 +263,7 @@ def main():
     # --------------------------------------------------------
     df_clean_today.to_excel(FILE_CLEAN, index=False)
     print(f"🎯 3. Đã làm sạch và cập nhật thành công dữ liệu mới vào file sạch '{FILE_CLEAN}'!")
+
 
 if __name__ == "__main__":
     main()
