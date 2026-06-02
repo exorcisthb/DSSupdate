@@ -1,17 +1,20 @@
 import requests
 import pandas as pd
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
+import ast
 
 # ============================================================
-# CẤU HÌNH HỆ THỐNG FILE
+# CẤU HÌNH HỆ THỐNG FILE (3 TẦNG ĐÚNG YÊU CẦU)
 # ============================================================
-FILE_HISTORICAL = "tiki_historical_data.xlsx"
+FILE_RAW        = "tiki_raw_data.xlsx"         # Ghi đè dữ liệu thô hôm nay
+FILE_CLEAN      = "tiki_clean_data.xlsx"       # Ghi đè dữ liệu làm sạch hôm nay
+FILE_HISTORICAL = "tiki_historical_data.xlsx"  # Gom dữ liệu sạch cũ (Tối đa 5 ngày)
 
-MAX_PAGES   = 10        # Mỗi category lấy tối đa 10 trang
+MAX_PAGES   = 10
 PAGE_SIZE   = 40
-DELAY       = 1.2       # Giây chờ để tránh bị block
+DELAY       = 1.2
 
 CATEGORIES = {
     "Thời trang nữ":         915,
@@ -23,28 +26,20 @@ CATEGORIES = {
 }
 
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8",
     "Referer": "https://tiki.vn/",
-    "x-guest-token": "FsRqGxDTtfbxFBmMnHcDpVxJHmzHLRME",
 }
 
-# ============================================================
-# HÀM CÀO DỮ LIỆU GỐC (RAW DATA)
-# ============================================================
 def fetch_products(category_id: int, page: int) -> dict:
     url = "https://tiki.vn/api/personalish/v1/blocks/listings"
     params = {
-        "limit":        PAGE_SIZE,
-        "page":         page,
-        "category":     category_id,
-        "sort":         "top_seller",
-        "urlKey":       "thoi-trang-phu-kien",
+        "limit": PAGE_SIZE,
+        "page": page,
+        "category": category_id,
+        "sort": "top_seller",
+        "urlKey": "thoi-trang-phu-kien",
     }
     try:
         resp = requests.get(url, params=params, headers=HEADERS, timeout=15)
@@ -54,34 +49,29 @@ def fetch_products(category_id: int, page: int) -> dict:
         print(f"  ⚠️ Lỗi request trang {page}: {e}")
         return {}
 
-def flatten_raw_item(item: dict, category_name: str) -> dict:
-    """
-    Giữ nguyên toàn bộ cấu trúc dict gốc từ Postman.
-    """
-    raw_data = item.copy()
-    
-    record = {
-        "Ngay": datetime.now().strftime("%Y-%m-%d"),
-        "Gio": datetime.now().strftime("%H:%M:%S"),
-        "danh_muc_cao": category_name
-    }
-    
-    for key, value in raw_data.items():
-        if isinstance(value, (dict, list)):
-            record[key] = str(value)
-        else:
-            record[key] = value
-            
-    return record
+def safe_eval_list(val):
+    if not val or pd.isna(val):
+        return []
+    if isinstance(val, list):
+        return val
+    try:
+        return ast.literal_eval(str(val))
+    except:
+        return []
 
 # ============================================================
-# TIẾN TRÌNH CHÍNH (MAIN)
+# TIẾN TRÌNH XỬ LÝ CHÍNH
 # ============================================================
 def main():
-    all_records = []
-    seen_ids    = set()
+    # Khởi tạo thời gian chuẩn múi giờ Việt Nam (ICT = UTC + 7)
+    time_vn = datetime.utcnow() + timedelta(hours=7)
+    ngay_hom_nay = time_vn.strftime("%Y-%m-%d")
+    gio_hom_nay  = "07:00:00" # Đồng bộ mốc cố định giống file mẫu của bạn
     
-    print("🤖 Bắt đầu thu thập TOÀN BỘ dữ liệu gốc từ Tiki...")
+    raw_records = []
+    seen_ids = set()
+    
+    print(f"🤖 Bắt đầu cào dữ liệu (Giờ VN: {ngay_hom_nay} {time_vn.strftime('%H:%M:%S')})...")
     
     for cat_name, cat_id in CATEGORIES.items():
         print(f"-> Đang quét ngành hàng: {cat_name}")
@@ -97,51 +87,61 @@ def main():
                 pid = item.get("id")
                 if pid and pid not in seen_ids:
                     seen_ids.add(pid)
-                    all_records.append(flatten_raw_item(item, cat_name))
+                    
+                    item_raw = item.copy()
+                    item_raw["category_main"] = cat_name
+                    item_raw["date_collected"] = ngay_hom_nay
+                    item_raw["time_collected"] = gio_hom_nay
+                    raw_records.append(item_raw)
             
             paging = data.get("paging", {})
-            total  = paging.get("total", 0)
-            if page * PAGE_SIZE >= total:
+            if page * PAGE_SIZE >= paging.get("total", 0):
                 break
             time.sleep(DELAY)
             
-    if not all_records:
-        print("❌ Không lấy được dữ liệu raw nào!")
+    if not raw_records:
+        print("❌ Không lấy được dữ liệu mới từ API!")
         return
 
-    df_today = pd.DataFrame(all_records)
-    print(f"✅ Đã đóng gói xong {len(df_today)} sản phẩm với đầy đủ trường dữ liệu gốc.")
+    # --------------------------------------------------------
+    # BƯỚC 1: GHI ĐÈ FILE RAW DATA (Đầy đủ tất cả các cột gốc)
+    # --------------------------------------------------------
+    processed_raw = []
+    for item in raw_records:
+        rec = {}
+        for k, v in item.items():
+            if isinstance(v, (dict, list)):
+                rec[k] = str(v)
+            else:
+                rec[k] = v
+        processed_raw.append(rec)
+        
+    df_raw_today = pd.DataFrame(processed_raw)
+    df_raw_today.to_excel(FILE_RAW, index=False)
+    print(f"💾 1. Đã ghi đè thành công file thô '{FILE_RAW}'.")
 
-    # --- TIẾN HÀNH GỘP LỊCH SỬ & GIỚI HẠN 5 NGÀY GẦN NHẤT ---
-    if os.path.exists(FILE_HISTORICAL):
+    # --------------------------------------------------------
+    # BƯỚC 2: CHUYỂN DỮ LIỆU CŨ TRONG CLEAN SANG FILE HISTORY
+    # --------------------------------------------------------
+    df_clean_old = pd.DataFrame()
+    if os.path.exists(FILE_CLEAN):
         try:
-            df_historical = pd.read_excel(FILE_HISTORICAL)
-            df_tong = pd.concat([df_historical, df_today], ignore_index=True)
-        except Exception as e:
-            print(f"⚠️ Không đọc được file lịch sử cũ, tiến hành tạo mới. Chi tiết: {e}")
-            df_tong = df_today
-    else:
-        df_tong = df_today
+            df_clean_old = pd.read_excel(FILE_CLEAN)
+            print("📦 Tìm thấy dữ liệu cũ trong file Clean, tiến hành chuyển sang History...")
+        except Exception:
+            pass
 
-    # SỬA LỖI: Chuyển đổi cột Ngay sang định dạng DateTime, loại bỏ dòng lỗi/rỗng
-    df_tong["Ngay"] = pd.to_datetime(df_tong["Ngay"], errors="coerce")
-    df_tong = df_tong.dropna(subset=["Ngay"])
-    
-    # Đồng bộ về chuỗi ký tự dạng YYYY-MM-DD an toàn để so sánh
-    df_tong["Ngay"] = df_tong["Ngay"].dt.strftime('%Y-%m-%d')
-    
-    # Xóa sản phẩm trùng lặp trong cùng một ngày cào dữ liệu
-    df_tong = df_tong.drop_duplicates(subset=["Ngay", "id"]).reset_index(drop=True)
-    
-    # Lấy danh sách 5 ngày gần đây nhất (Lúc này chắc chắn toàn bộ là chuỗi chữ)
-    danh_sach_ngay = sorted(df_tong["Ngay"].unique(), reverse=True)
-    top_5_ngay = danh_sach_ngay[:5]
-    df_cuoi_cung = df_tong[df_tong["Ngay"].isin(top_5_ngay)]
-    
-    # Xuất dữ liệu lưu đè lại
-    df_cuoi_cung.to_excel(FILE_HISTORICAL, index=False)
-    print(f"💾 Đã ghi đè file '{FILE_HISTORICAL}' thành công! (Dữ liệu lưu giữ của các ngày: {top_5_ngay})")
-
-
-if __name__ == "__main__":
-    main()
+    if not df_clean_old.empty:
+        df_history_old = pd.DataFrame()
+        if os.path.exists(FILE_HISTORICAL):
+            try:
+                df_history_old = pd.read_excel(FILE_HISTORICAL)
+            except Exception:
+                pass
+                
+        # Gộp dữ liệu sạch cũ lại với nhau
+        df_history_combined = pd.concat([df_history_old, df_clean_old], ignore_index=True)
+        
+        # Làm sạch định dạng ngày tháng và loại bỏ trùng lặp sản phẩm trong cùng một ngày
+        df_history_combined["date_collected"] = pd.to_datetime(df_history_combined["date_collected"], errors="coerce")
+        df_history_combined = df_history_combined.dropna(subset=
