@@ -32,6 +32,16 @@ HEADERS = {
     "Referer": "https://tiki.vn/",
 }
 
+# Định nghĩa chuẩn xác danh sách 30 cột cần có cho file Clean và History
+REQUIRED_COLUMNS = [
+    "product_id", "product_name", "brand_name", "category_l1", "category_l2",
+    "category_l3", "primary_category", "price", "original_price", "discount_amount",
+    "discount_percent", "rating", "review_count", "sold_count", "favourite_count",
+    "estimated_revenue", "seller_id", "seller_type", "is_official_store", "tiki_verified",
+    "is_tiki_now", "is_freeship", "delivery_estimate_days", "order_route", "origin",
+    "is_imported", "is_authentic", "is_top_brand", "date_collected", "time_collected"
+]
+
 def fetch_products(category_id: int, page: int) -> dict:
     url = "https://tiki.vn/api/personalish/v1/blocks/listings"
     params = {
@@ -59,7 +69,6 @@ def safe_eval_list(val):
     except:
         return []
 
-# Bảng map hỗ trợ phân loại danh mục cấp 2 chủ động
 CATEGORY_L2_MAP = {
     917: "Áo nữ", 921: "Đầm nữ", 929: "Quần nữ", 933: "Áo khoác nữ", 930: "Chân váy",
     932: "Áo nam", 934: "Quần nam", 938: "Áo khoác nam", 5351: "Đồ lót nam",
@@ -113,7 +122,7 @@ def main():
         return
 
     # --------------------------------------------------------
-    # BƯỚC 1: GHI ĐÈ FILE RAW DATA (Bảo toàn 100% cột gốc thô)
+    # BƯỚC 1: GHI ĐÈ FILE RAW DATA (Bảo toàn dữ liệu thô gốc)
     # --------------------------------------------------------
     processed_raw = []
     for item in raw_records:
@@ -136,9 +145,8 @@ def main():
     for item in raw_records:
         price = item.get("price", 0)
         original_price = item.get("original_price", price)
-        discount_amount = original_price - price 
+        discount_amount = original_price - price if original_price > price else 0
         
-        # Xử lý bóc tách số lượng đã bán an toàn
         sold_count = 0
         if item.get("quantity_sold_value") is not None:
             try:
@@ -159,7 +167,6 @@ def main():
         
         estimated_revenue = price * sold_count
         
-        # Bóc tách Cây danh mục L2, L3 an toàn
         cat_path = item.get("primary_category_path", "")
         cat_ids = [int(x) for x in cat_path.split("/") if x.isdigit()] if isinstance(cat_path, str) else []
         
@@ -169,7 +176,6 @@ def main():
                 category_l2 = CATEGORY_L2_MAP[cid]
                 break
                 
-        # Phân tích Badges gắn nhãn Store đặc thù
         badges_list = safe_eval_list(item.get("badges_new")) + safe_eval_list(item.get("badges_v3"))
         badge_codes = [b.get("code") for b in badges_list if isinstance(b, dict) and b.get("code")]
         
@@ -179,8 +185,8 @@ def main():
         is_freeship = "freeship_xtra" in badge_codes or "freeship" in str(badges_list).lower()
         is_top_brand = "top_brand" in badge_codes
         
-        # GIẢI PHÁP TRIỆT ĐỂ: Tạo khung rỗng cố định có đúng 30 cột, sau đó gán giá trị vào từng cột
-        clean_rec = {}
+        # Tạo dữ liệu bằng DataFrame từ đầu để loại trừ tuyệt đối lỗi lệch chiều dài mảng
+        clean_rec = {col: None for col in REQUIRED_COLUMNS}
         clean_rec["product_id"]             = item.get("id")
         clean_rec["product_name"]           = item.get("name", "")
         clean_rec["brand_name"]             = item.get("brand_name", "OEM")
@@ -214,16 +220,21 @@ def main():
         
         clean_records.append(clean_rec)
         
-    df_clean_today = pd.DataFrame(clean_records)
+    df_clean_today = pd.DataFrame(clean_records, columns=REQUIRED_COLUMNS)
 
     # --------------------------------------------------------
-    # BƯỚC 3: DỌN DẸP CHUYỂN FILE CLEAN CŨ SANG FILE HISTORY
+    # BƯỚC 3: KIỂM TRA VÀ GỘP LỊCH SỬ AN TOÀN
     # --------------------------------------------------------
     df_clean_old = pd.DataFrame()
     if os.path.exists(FILE_CLEAN):
         try:
-            df_clean_old = pd.read_excel(FILE_CLEAN)
-            print("📦 Đang tiến hành chuyển dữ liệu sạch ngày cũ vào kho lịch sử...")
+            df_tmp = pd.read_excel(FILE_CLEAN)
+            # Khóa chống lỗi cấu trúc: Chỉ lấy nếu file cũ có đủ số lượng cột chuẩn
+            if len(df_tmp.columns) == len(REQUIRED_COLUMNS):
+                df_clean_old = df_tmp
+                print("📦 Đang tiến hành chuyển dữ liệu sạch ngày cũ vào kho lịch sử...")
+            else:
+                print("⚠️ Phát hiện file Clean cũ bị lệch cột, bỏ qua gộp để tránh sập hệ thống.")
         except Exception:
             pass
 
@@ -231,27 +242,24 @@ def main():
         df_history_old = pd.DataFrame()
         if os.path.exists(FILE_HISTORICAL):
             try:
-                df_history_old = pd.read_excel(FILE_HISTORICAL)
+                df_tmp_hist = pd.read_excel(FILE_HISTORICAL)
+                if len(df_tmp_hist.columns) == len(REQUIRED_COLUMNS):
+                    df_history_old = df_tmp_hist
             except Exception:
                 pass
                 
-        # Khóa an toàn: Làm sạch file lịch sử nếu dính lỗi lệch cột cũ
-        if not df_history_old.empty and "product_id" not in df_history_old.columns:
-            print("⚠️ Phát hiện file history cũ bị sai cấu trúc cột, tiến hành làm mới kho lịch sử.")
-            df_history_old = pd.DataFrame()
-
-        # Kết nối đồng bộ kho lịch sử
+        # Đồng bộ gộp dữ liệu lịch sử
         df_history_combined = pd.concat([df_history_old, df_clean_old], ignore_index=True)
         
-        # Làm sạch ngày tháng
+        # Ép định dạng ngày tháng và xóa trùng lặp
         df_history_combined["date_collected"] = pd.to_datetime(df_history_combined["date_collected"], errors="coerce")
         df_history_combined = df_history_combined.dropna(subset=["date_collected"])
         df_history_combined["date_collected"] = df_history_combined["date_collected"].dt.strftime('%Y-%m-%d')
         
-        if "product_id" in df_history_combined.columns and "date_collected" in df_history_combined.columns:
+        if "product_id" in df_history_combined.columns:
             df_history_combined = df_history_combined.drop_duplicates(subset=["date_collected", "product_id"]).reset_index(drop=True)
         
-        # Giới hạn kho dữ liệu lịch sử tối đa 5 ngày gần nhất
+        # Giới hạn giữ tối đa 5 ngày gần nhất
         unique_days = sorted(df_history_combined["date_collected"].unique(), reverse=True)
         top_5_days  = unique_days[:5]
         df_history_final = df_history_combined[df_history_combined["date_collected"].isin(top_5_days)]
@@ -260,7 +268,7 @@ def main():
         print(f"💾 2. Kho lịch sử '{FILE_HISTORICAL}' đã cập nhật an toàn. (Lưu giữ: {top_5_days})")
 
     # --------------------------------------------------------
-    # BƯỚC 4: GHI ĐÈ FILE CLEAN DATA MỚI NHẤT HÔM NAY
+    # BƯỚC 4: GHI ĐÈ FILE CLEAN DATA MỚI NHẤT HÔM NAY (Đúng 30 cột)
     # --------------------------------------------------------
     df_clean_today.to_excel(FILE_CLEAN, index=False)
     print(f"🎯 3. Đã làm sạch và cập nhật thành công dữ liệu mới vào file sạch '{FILE_CLEAN}'!")
