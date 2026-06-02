@@ -6,10 +6,10 @@ import os
 import ast
 
 # ============================================================
-# CẤU HÌNH HỆ THỐNG FILE (3 TẦNG ĐÚNG CẤU TRÚC MẪU)
+# CẤU HÌNH HỆ THỐNG FILE (3 TẦNG CHUẨN)
 # ============================================================
-FILE_RAW        = "tiki_raw_data.xlsx"         # Ghi đè dữ liệu thô gốc hôm nay
-FILE_CLEAN      = "tiki_clean_data.xlsx"       # Ghi đè dữ liệu làm sạch hôm nay
+FILE_RAW        = "tiki_raw_data.xlsx"         # Ghi đè dữ liệu thô hôm nay
+FILE_CLEAN      = "tiki_clean_data.xlsx"       # Ghi đè dữ liệu sạch hôm nay
 FILE_HISTORICAL = "tiki_historical_data.xlsx"  # Gom dữ liệu sạch cũ (Tối đa 5 ngày)
 
 MAX_PAGES   = 10
@@ -59,7 +59,7 @@ def safe_eval_list(val):
     except:
         return []
 
-# Cây danh mục L2 hỗ trợ bóc tách tự động
+# Bảng map bổ trợ phân loại danh mục cấp 2
 CATEGORY_L2_MAP = {
     917: "Áo nữ", 921: "Đầm nữ", 929: "Quần nữ", 933: "Áo khoác nữ", 930: "Chân váy",
     932: "Áo nam", 934: "Quần nam", 938: "Áo khoác nam", 5351: "Đồ lót nam",
@@ -73,7 +73,6 @@ CATEGORY_L2_MAP = {
 # TIẾN TRÌNH XỬ LÝ CHÍNH
 # ============================================================
 def main():
-    # Cấu hình thời gian chuẩn múi giờ Việt Nam
     time_vn = datetime.utcnow() + timedelta(hours=7)
     ngay_hom_nay = time_vn.strftime("%Y-%m-%d")
     gio_hom_nay  = "07:00:00" 
@@ -235,16 +234,22 @@ def main():
             except Exception:
                 pass
                 
+        # Kiểm tra cấu trúc an toàn bảo vệ lỗi xung đột cột giữa các phiên bản cũ
+        if not df_history_old.empty and "product_id" not in df_history_old.columns:
+            print("⚠️ Phát hiện file history cũ bị sai cấu trúc cột, tiến hành làm mới kho lịch sử.")
+            df_history_old = pd.DataFrame()
+
         # Kết nối đồng bộ kho lịch sử
         df_history_combined = pd.concat([df_history_old, df_clean_old], ignore_index=True)
         
-        # Làm sạch ngày tháng, loại bỏ trùng lặp dựa trên [date_collected, product_id]
+        # Làm sạch ngày tháng
         df_history_combined["date_collected"] = pd.to_datetime(df_history_combined["date_collected"], errors="coerce")
         df_history_combined = df_history_combined.dropna(subset=["date_collected"])
         df_history_combined["date_collected"] = df_history_combined["date_collected"].dt.strftime('%Y-%m-%d')
         
-        # FIX LỖI TRIỆT ĐỂ: Chỉ drop trùng lặp dựa vào những cột chắc chắn tồn tại trong file clean
-        df_history_combined = df_history_combined.drop_duplicates(subset=["date_collected", "product_id"]).reset_index(drop=True)
+        # Chỉ xử lý drop_duplicates khi chắc chắn có đủ cột đích
+        if "product_id" in df_history_combined.columns and "date_collected" in df_history_combined.columns:
+            df_history_combined = df_history_combined.drop_duplicates(subset=["date_collected", "product_id"]).reset_index(drop=True)
         
         # Giới hạn kho dữ liệu lịch sử tối đa 5 ngày gần nhất
         unique_days = sorted(df_history_combined["date_collected"].unique(), reverse=True)
