@@ -80,7 +80,7 @@ def main():
     raw_records = []
     seen_ids = set()
     
-    print(f"🤖 Bắt đầu thu thập dữ liệu (Múi giờ VN: {ngay_hom_nay} {time_vn.strftime('%H:%M:%S')})...")
+    print(f"🤖 Bắt đầu thu thập dữ liệu (Giờ Việt Nam: {ngay_hom_nay} {time_vn.strftime('%H:%M:%S')})...")
     
     for cat_name, cat_id in CATEGORIES.items():
         print(f"-> Đang quét ngành hàng: {cat_name}")
@@ -109,11 +109,11 @@ def main():
             time.sleep(DELAY)
             
     if not raw_records:
-        print("❌ Không thu được dữ liệu mới từ API.")
+        print("❌ Không lấy được dữ liệu mới từ API!")
         return
 
     # --------------------------------------------------------
-    # BƯỚC 1: GHI ĐÈ FILE RAW DATA
+    # BƯỚC 1: GHI ĐÈ FILE RAW DATA (Bảo toàn dữ liệu thô cào được)
     # --------------------------------------------------------
     processed_raw = []
     for item in raw_records:
@@ -163,15 +163,15 @@ def main():
         print(f"💾 2. Đã đồng bộ dữ liệu vào file lịch sử '{FILE_HISTORICAL}' (Lưu trữ các ngày: {top_5_days})")
 
     # --------------------------------------------------------
-    # BƯỚC 3: XỬ LÝ LÀM SẠCH VÀ GHI ĐÈ FILE CLEAN DATA
+    # BƯỚC 3: TRÍCH XUẤT AN TOÀN VÀ LÀM SẠCH SANG FILE CLEAN DATA
     # --------------------------------------------------------
     clean_records = []
     for item in raw_records:
         price = item.get("price", 0)
         original_price = item.get("original_price", price)
-        discount_amount = original_price - price # Sửa lại logic: Giá gốc - Giá hiện tại = Số tiền được giảm
+        discount_amount = original_price - price 
         
-        # Bóc tách số lượng đã bán an toàn
+        # Bóc tách số lượng đã bán
         sold_count = item.get("order_count", 0)
         if item.get("quantity_sold_value"):
             try:
@@ -185,7 +185,7 @@ def main():
         
         estimated_revenue = price * sold_count
         
-        # Phân loại cây danh mục từ primary_category_path
+        # Bóc tách Cây danh mục (Sử dụng hàm .get() an toàn tránh KeyError)
         cat_path = item.get("primary_category_path", "")
         cat_ids = [int(x) for x in cat_path.split("/") if x.isdigit()] if isinstance(cat_path, str) else []
         
@@ -195,24 +195,25 @@ def main():
                 category_l2 = CATEGORY_L2_MAP[cid]
                 break
                 
-        # Phân tích Badges
+        # Phân tích các trường Badges để gắn nhãn Store
         badges_list = safe_eval_list(item.get("badges_new")) + safe_eval_list(item.get("badges_v3"))
         badge_codes = [b.get("code") for b in badges_list if isinstance(b, dict) and b.get("code")]
         
-        is_official = "official_store" in badge_codes or item.get("inventory_status") == "available" and "rẻ hơn hoàn tiền" in str(badges_list).lower()
-        tiki_verified = "tiki_verified" in badge_codes or "chính hãng" in str(badges_list).lower()
-        is_tiki_now = "tikinow" in badge_codes
-        is_freeship = "freeship_xtra" in badge_codes or "freeship" in str(badges_list).lower()
-        is_top_brand = "top_brand" in badge_codes
+        is_official = item.get("amp_is_official_store", "official_store" in badge_codes or item.get("inventory_status") == "available" and "rẻ hơn hoàn tiền" in str(badges_list).lower())
+        tiki_verified = item.get("amp_tiki_verified", "tiki_verified" in badge_codes or "chính hãng" in str(badges_list).lower())
+        is_tiki_now = item.get("tiki_live", "tikinow" in badge_codes)
+        is_freeship = item.get("amp_is_freeship_xtra", "freeship_xtra" in badge_codes or "freeship" in str(badges_list).lower())
+        is_top_brand = item.get("amp_is_top_brand", "top_brand" in badge_codes)
         
+        # Tạo bản ghi bằng phương thức .get(key, default_value) để không bao giờ bị lỗi sập hệ thống
         clean_rec = {
             "product_id":             item.get("id"),
             "product_name":           item.get("name"),
             "brand_name":             item.get("brand_name", "OEM"),
             "category_l1":            item.get("category_main"),
-            "category_l2":            category_l2,
-            "category_l3":            category_l2,  # Dự phòng cấu trúc cột của bạn
-            "primary_category":       item.get("category_main"),
+            "category_l2":            item.get("amp_category_l2_name", category_l2),
+            "category_l3":            item.get("amp_category_l3_name", category_l2),
+            "primary_category":       item.get("amp_primary_category_name", item.get("category_main")),
             "price":                  price,
             "original_price":         original_price,
             "discount_amount":        discount_amount,
@@ -223,17 +224,17 @@ def main():
             "favourite_count":        item.get("favourite_count", 0),
             "estimated_revenue":      estimated_revenue,
             "seller_id":              item.get("seller_id", 0),
-            "seller_type":            "OFFICIAL_STORE" if is_official else "NONE",
-            "is_official_store":      is_official,
-            "tiki_verified":          tiki_verified,
-            "is_tiki_now":            is_tiki_now,
-            "is_freeship":            is_freeship,
-            "delivery_estimate_days": 1 if is_tiki_now else 3,
-            "order_route":            "same_province",
-            "origin":                 "Việt Nam",
-            "is_imported":            False,
-            "is_authentic":           True,
-            "is_top_brand":           is_top_brand,
+            "seller_type":            item.get("amp_seller_type", "OFFICIAL_STORE" if is_official else "NONE"),
+            "is_official_store":      bool(is_official),
+            "tiki_verified":          bool(tiki_verified),
+            "is_tiki_now":            bool(is_tiki_now),
+            "is_freeship":            bool(is_freeship),
+            "delivery_estimate_days": item.get("amp_standard_delivery_estimate", 1 if is_tiki_now else 3),
+            "order_route":            item.get("amp_order_route", "same_province"),
+            "origin":                 item.get("amp_origin", "Việt Nam"),
+            "is_imported":            bool(item.get("amp_is_imported", False)),
+            "is_authentic":           bool(item.get("amp_is_authentic", True)),
+            "is_top_brand":           bool(is_top_brand),
             "date_collected":         item.get("date_collected"),
             "time_collected":         item.get("time_collected")
         }
@@ -241,7 +242,7 @@ def main():
         
     df_clean_today = pd.DataFrame(clean_records)
     df_clean_today.to_excel(FILE_CLEAN, index=False)
-    print(f"🎯 3. Đã tính toán làm sạch và cập nhật file thành công vào '{FILE_CLEAN}'!")
+    print(f"🎯 3. Đã tính toán làm sạch và ghi đè thành công dữ liệu mới vào file sạch '{FILE_CLEAN}'!")
 
 if __name__ == "__main__":
     main()
