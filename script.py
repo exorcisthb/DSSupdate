@@ -57,23 +57,18 @@ def fetch_products(category_id: int, page: int) -> dict:
 def flatten_raw_item(item: dict, category_name: str) -> dict:
     """
     Giữ nguyên toàn bộ cấu trúc dict gốc từ Postman.
-    Chuyển đổi các danh sách hoặc dict phức tạp (như badges_new, visible_impression_info) 
-    thành chuỗi text/json để lưu trữ an toàn vào Excel mà không bị mất dữ liệu.
     """
-    # Tạo một bản sao để tránh ghi đè trực tiếp lên dữ liệu gốc
     raw_data = item.copy()
     
-    # Thêm các trường phân loại và thời gian cào dữ liệu vào đầu bản ghi
     record = {
         "Ngay": datetime.now().strftime("%Y-%m-%d"),
         "Gio": datetime.now().strftime("%H:%M:%S"),
         "danh_muc_cao": category_name
     }
     
-    # Duyệt và ép kiểu chuỗi đối với các trường phức tạp để Excel không bị lỗi cấu trúc
     for key, value in raw_data.items():
         if isinstance(value, (dict, list)):
-            record[key] = str(value)  # Lưu trữ trọn vẹn dưới dạng text JSON
+            record[key] = str(value)
         else:
             record[key] = value
             
@@ -102,7 +97,6 @@ def main():
                 pid = item.get("id")
                 if pid and pid not in seen_ids:
                     seen_ids.add(pid)
-                    # Thu thập toàn bộ các trường JSON chuẩn Postman
                     all_records.append(flatten_raw_item(item, cat_name))
             
             paging = data.get("paging", {})
@@ -115,7 +109,6 @@ def main():
         print("❌ Không lấy được dữ liệu raw nào!")
         return
 
-    # Chuyển đổi dữ liệu ngày hôm nay thành DataFrame
     df_today = pd.DataFrame(all_records)
     print(f"✅ Đã đóng gói xong {len(df_today)} sản phẩm với đầy đủ trường dữ liệu gốc.")
 
@@ -123,25 +116,29 @@ def main():
     if os.path.exists(FILE_HISTORICAL):
         try:
             df_historical = pd.read_excel(FILE_HISTORICAL)
-            # Gộp dữ liệu cũ và mới lại với nhau
             df_tong = pd.concat([df_historical, df_today], ignore_index=True)
-            # Xóa trùng lặp sản phẩm trùng nhau trong cùng một ngày cào dữ liệu
-            df_tong = df_tong.drop_duplicates(subset=["Ngay", "id"]).reset_index(drop=True)
         except Exception as e:
-            print(f"⚠️ Không đọc được file lịch sử cũ (có thể do đổi cấu trúc cột), tiến hành tạo mới. Chi tiết: {e}")
+            print(f"⚠️ Không đọc được file lịch sử cũ, tiến hành tạo mới. Chi tiết: {e}")
             df_tong = df_today
     else:
         df_tong = df_today
 
-    # Đồng bộ lại định dạng chuỗi ngày tháng YYYY-MM-DD
-    df_tong["Ngay"] = pd.to_datetime(df_tong["Ngay"]).dt.strftime('%Y-%m-%d')
+    # SỬA LỖI: Chuyển đổi cột Ngay sang định dạng DateTime, loại bỏ dòng lỗi/rỗng
+    df_tong["Ngay"] = pd.to_datetime(df_tong["Ngay"], errors="coerce")
+    df_tong = df_tong.dropna(subset=["Ngay"])
     
-    # Lọc lấy danh sách 5 ngày gần đây nhất
+    # Đồng bộ về chuỗi ký tự dạng YYYY-MM-DD an toàn để so sánh
+    df_tong["Ngay"] = df_tong["Ngay"].dt.strftime('%Y-%m-%d')
+    
+    # Xóa sản phẩm trùng lặp trong cùng một ngày cào dữ liệu
+    df_tong = df_tong.drop_duplicates(subset=["Ngay", "id"]).reset_index(drop=True)
+    
+    # Lấy danh sách 5 ngày gần đây nhất (Lúc này chắc chắn toàn bộ là chuỗi chữ)
     danh_sach_ngay = sorted(df_tong["Ngay"].unique(), reverse=True)
     top_5_ngay = danh_sach_ngay[:5]
     df_cuoi_cung = df_tong[df_tong["Ngay"].isin(top_5_ngay)]
     
-    # Xuất dữ liệu lưu lại trực tiếp lên GitHub
+    # Xuất dữ liệu lưu đè lại
     df_cuoi_cung.to_excel(FILE_HISTORICAL, index=False)
     print(f"💾 Đã ghi đè file '{FILE_HISTORICAL}' thành công! (Dữ liệu lưu giữ của các ngày: {top_5_ngay})")
 
