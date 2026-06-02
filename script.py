@@ -60,8 +60,13 @@ def fetch_products(category_id: int, page: int) -> dict:
         return {}
 
 def safe_eval_list(val):
-    if not val or pd.isna(val):
+    if val is None:
         return []
+    try:
+        if pd.isna(val):
+            return []
+    except (TypeError, ValueError):
+        pass
     if isinstance(val, list):
         return val
     try:
