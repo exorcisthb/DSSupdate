@@ -185,78 +185,89 @@ def main():
         discount_pct   = round(discount_amt / original_price * 100, 1) if original_price > 0 else 0
         sold_count     = get_sold_count(item)
 
-        # Ưu tiên amp_category (Tiki trả về trong listing API)
-        # Fallback 1: primary_category_path (map qua CATEGORIES_ID_MAP)
-        # Fallback 2: _crawl_category (category đang cào) → tránh bị gán sai nam/nữ
-        cat_l1 = item.get("amp_category_l1_name", "") or ""
-        cat_l2 = item.get("amp_category_l2_name", "") or ""
-        cat_l3 = item.get("amp_category_l3_name", "") or ""
+        # ── Lấy amplitude object từ visible_impression_info ──────────────────
+        # Đây là nguồn dữ liệu chuẩn nhất: Tiki điền sẵn category, seller,
+        # freeship, origin, v.v. theo đúng context sản phẩm (xác nhận qua Postman)
+        vis   = item.get("visible_impression_info") or {}
+        if isinstance(vis, str):
+            try: vis = ast.literal_eval(vis)
+            except: vis = {}
+        amp   = vis.get("amplitude") or {}
+        if isinstance(amp, str):
+            try: amp = ast.literal_eval(amp)
+            except: amp = {}
 
-        if not cat_l1:
-            path = item.get("primary_category_path", "")
-            ids  = [int(x) for x in str(path).split("/") if x.isdigit()] if path else []
-            for cid in ids:
-                if cid in CATEGORIES_ID_MAP:
-                    cat_l1 = CATEGORIES_ID_MAP[cid]
-                    break
+        # ── Category ─────────────────────────────────────────────────────────
+        # Ưu tiên amplitude (chính xác nhất), fallback _crawl_category
+        cat_l1 = amp.get("category_l1_name", "") or ""
+        cat_l2 = amp.get("category_l2_name", "") or ""
+        # category_l3 / primary_category_name đều từ amplitude
+        cat_l3          = ""   # API không trả l3 riêng, để trống
+        primary_cat     = amp.get("primary_category_name", "") or ""
 
-        # Fallback cuối: dùng category đang cào, chính xác hơn primary_category_path
-        # vì seen_ids chỉ giữ lần đầu gặp → amp trống thì tin vào crawl context
         if not cat_l1:
             cat_l1 = item.get("_crawl_category", "")
-
         if not cat_l2:
+            # Fallback map qua primary_category_path nếu amplitude không có l2
             path = item.get("primary_category_path", "")
             ids  = [int(x) for x in str(path).split("/") if x.isdigit()] if path else []
             cat_l2 = next((CATEGORY_L2_MAP[c] for c in ids if c in CATEGORY_L2_MAP), "Khác")
 
-        seller      = item.get("current_seller") or {}
-        if isinstance(seller, str):
-            try: seller = ast.literal_eval(seller)
-            except: seller = {}
+        # ── Seller ───────────────────────────────────────────────────────────
+        # seller_id / seller_type có trong cả root lẫn amplitude; dùng amplitude
+        seller_id   = amp.get("seller_id", item.get("seller_id", ""))
+        seller_type = amp.get("seller_type", "")
+        # is_official_store nằm trong impression_info.metadata
+        imp_meta        = {}
+        imp_list = item.get("impression_info") or []
+        if isinstance(imp_list, str):
+            try: imp_list = ast.literal_eval(imp_list)
+            except: imp_list = []
+        if imp_list and isinstance(imp_list, list):
+            imp_meta = imp_list[0].get("metadata", {}) if isinstance(imp_list[0], dict) else {}
+        is_official = bool(imp_meta.get("is_official_store", 0))
 
-        badges      = item.get("badges_new") or []
-        if isinstance(badges, str):
-            try: badges = ast.literal_eval(badges)
-            except: badges = []
-        badge_names = [b.get("code", "") for b in badges if isinstance(b, dict)]
+        # ── Badges / tiki_verified ────────────────────────────────────────────
+        tiki_verified = bool(amp.get("tiki_verified", 0))
 
-        shipping    = item.get("shipping_info") or {}
-        if isinstance(shipping, str):
-            try: shipping = ast.literal_eval(shipping)
-            except: shipping = {}
+        # ── Freeship / TikiNow ────────────────────────────────────────────────
+        is_freeship = bool(amp.get("is_freeship_xtra", False))
+        is_tikinow  = bool(imp_meta.get("is_tikinow", 0))
+
+        # ── Delivery estimate ─────────────────────────────────────────────────
+        delivery_days = round(float(amp.get("standard_delivery_estimate", 0) or 0), 1)
 
         pid = str(item.get("id", ""))
         clean_records.append({
             "product_id":             pid,
             "product_name":           item.get("name", ""),
             "product_link":           f"https://tiki.vn/{item.get('url_path', '')}" if item.get("url_path") else "",
-            "brand_name":             item.get("brand_name", "") or (item.get("brand") or {}).get("name", "") if not isinstance(item.get("brand"), str) else "",
+            "brand_name":             amp.get("brand_name", "") or item.get("brand_name", ""),
             "category_l1":            cat_l1,
             "category_l2":            cat_l2,
             "category_l3":            cat_l3,
-            "primary_category":       item.get("primary_category_name", ""),
+            "primary_category":       primary_cat,
             "price":                  price,
             "original_price":         original_price,
             "discount_amount":        discount_amt,
             "discount_percent":       discount_pct,
             "rating":                 round(float(item.get("rating_average", 0) or 0), 1),
-            "review_count":           safe_int(item.get("review_count", 0)),
+            "review_count":           safe_int(amp.get("number_of_reviews", item.get("review_count", 0))),
             "sold_count":             sold_count,
             "favourite_count":        safe_int(item.get("favourite_count", 0)),
             "estimated_revenue":      price * sold_count,
-            "seller_id":              seller.get("id", item.get("seller_id", "")),
-            "seller_type":            seller.get("store_type", item.get("seller_type", "")),
-            "is_official_store":      bool(seller.get("is_official", False)),
-            "tiki_verified":          "tiki_verified" in badge_names,
-            "is_tiki_now":            bool(item.get("is_tikinow_delivery", False)),
-            "is_freeship":            bool(item.get("freeship_campaign", False)),
-            "delivery_estimate_days": round(float(shipping.get("estimate_days", 0) or 0), 1),
-            "order_route":            item.get("order_route", ""),
-            "origin":                 item.get("origin", ""),
-            "is_imported":            bool(item.get("is_imported", False)),
-            "is_authentic":           bool(item.get("is_authentic", False)),
-            "is_top_brand":           bool(item.get("is_top_brand", False)),
+            "seller_id":              seller_id,
+            "seller_type":            seller_type,
+            "is_official_store":      is_official,
+            "tiki_verified":          tiki_verified,
+            "is_tiki_now":            is_tikinow,
+            "is_freeship":            is_freeship,
+            "delivery_estimate_days": delivery_days,
+            "order_route":            amp.get("order_route", ""),
+            "origin":                 amp.get("origin", ""),
+            "is_imported":            bool(amp.get("is_imported", False)),
+            "is_authentic":           bool(amp.get("is_authentic", 0)),
+            "is_top_brand":           bool(amp.get("is_top_brand", False)),
             "date_collected":         ngay_hom_nay,
             "time_collected":         gio_hom_nay,
         })
