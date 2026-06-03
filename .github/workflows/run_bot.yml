@@ -2,9 +2,9 @@ name: Tu dong chay cap nhat du lieu 8h sang
 
 on:
   schedule:
-    # 8h sáng Việt Nam tương đương với 1h sáng giờ quốc tế UTC
+    # 8h sáng Việt Nam = 1h sáng UTC
     - cron: '0 1 * * *'
-  workflow_dispatch: # Dòng này giúp bạn có thể bấm nút chạy thử thủ công bất kỳ lúc nào
+  workflow_dispatch:
 
 jobs:
   build:
@@ -12,6 +12,8 @@ jobs:
     steps:
     - name: Kiem tra thu muc code
       uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}   # ← đã thêm dòng này
 
     - name: Cai dat Python
       uses: actions/setup-python@v4
@@ -19,8 +21,7 @@ jobs:
         python-version: '3.10'
 
     - name: Cai dat thu vien can thiet
-      run: |
-        pip install pandas openpyxl requests
+      run: pip install pandas openpyxl requests
 
     - name: Chay file Python cap nhat du lieu
       run: python script.py
@@ -30,5 +31,5 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action Bot"
         git add tiki_raw_data.xlsx tiki_clean_data.xlsx tiki_historical_data.xlsx tiki_changes_report.xlsx
-        git commit -m "Bot tu dong cap nhat ngay $(date +'%Y-%m-%d')" || exit 0
+        git diff --staged --quiet || git commit -m "Bot tu dong cap nhat ngay $(date +'%Y-%m-%d')"
         git push
