@@ -35,13 +35,13 @@ HEADERS = {
 
 REQUIRED_COLUMNS = [
     "product_id", "product_name", "product_link", "brand_name",
-    "category_l1", "category_l2", "category_l3", "primary_category",
-    "price", "original_price", "discount_amount", "discount_percent",
-    "rating", "review_count", "sold_count", "favourite_count",
-    "estimated_revenue", "seller_id", "seller_type", "is_official_store",
-    "tiki_verified", "is_tiki_now", "is_freeship", "delivery_estimate_days",
-    "order_route", "origin", "is_imported", "is_authentic", "is_top_brand",
-    "date_collected", "time_collected"
+    "category_l1", "category_l2", "primary_category",
+    "price", "original_price", "discount_percent",
+    "rating", "review_count", "sold_count",
+    "estimated_revenue", "is_official_store",
+    "is_freeship", "order_route", "origin",
+    "is_imported", "is_authentic", "is_top_brand",
+    "date_collected"
 ]
 
 # Map ngược từ category ID → tên L1 (dùng khi amp_category không có)
