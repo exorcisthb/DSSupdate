@@ -126,12 +126,14 @@ def main():
 
     # ----------------------------------------------------------
     # BƯỚC 1: CÀO DỮ LIỆU THÔ
+    # Không dedup ở đây - để mỗi sản phẩm giữ đúng category đang quét
+    # Dedup sau khi làm sạch (giữ lần xuất hiện đầu tiên theo đúng category)
     # ----------------------------------------------------------
     raw_records = []
-    seen_ids    = set()
 
     for cat_name, cat_id in CATEGORIES.items():
         print(f"  → Quét: {cat_name}")
+        seen_in_cat = set()  # chỉ dedup trong cùng 1 category
         for page in range(1, MAX_PAGES + 1):
             data  = fetch_products(cat_id, page)
             items = data.get("data", [])
@@ -139,8 +141,8 @@ def main():
                 break
             for item in items:
                 pid = item.get("id")
-                if pid and pid not in seen_ids:
-                    seen_ids.add(pid)
+                if pid and pid not in seen_in_cat:
+                    seen_in_cat.add(pid)
                     item["category_main"]  = cat_name
                     item["date_collected"] = ngay_hom_nay
                     item["time_collected"] = gio_hom_nay
@@ -229,7 +231,10 @@ def main():
         })
 
     df_clean_today = pd.DataFrame(clean_records)[REQUIRED_COLUMNS]
-    print(f"🧹 [2/4] Làm sạch xong: {len(df_clean_today)} sản phẩm")
+    before = len(df_clean_today)
+    df_clean_today = df_clean_today.drop_duplicates(subset=["product_id"], keep="first").reset_index(drop=True)
+    after = len(df_clean_today)
+    print(f"🧹 [2/4] Làm sạch xong: {after} sản phẩm (bỏ {before - after} trùng lặp cross-category)")
 
     # ----------------------------------------------------------
     # BƯỚC 3: CẬP NHẬT HISTORICAL (đẩy clean CŨ vào lịch sử)
