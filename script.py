@@ -153,8 +153,9 @@ def main():
                 pid = item.get("id")
                 if pid and pid not in seen_ids:
                     seen_ids.add(pid)
-                    item["date_collected"] = ngay_hom_nay
-                    item["time_collected"] = gio_hom_nay
+                    item["date_collected"]   = ngay_hom_nay
+                    item["time_collected"]   = gio_hom_nay
+                    item["_crawl_category"]  = cat_name  # ← ghi nhớ cào từ category nào
                     raw_records.append(item)
             paging = data.get("paging", {})
             if page * PAGE_SIZE >= paging.get("total", 0):
@@ -184,11 +185,13 @@ def main():
         discount_pct   = round(discount_amt / original_price * 100, 1) if original_price > 0 else 0
         sold_count     = get_sold_count(item)
 
-        # Ưu tiên amp_category (có trong một số lần cào)
-        # Fallback về primary_category_path nếu không có amp fields
+        # Ưu tiên amp_category (Tiki trả về trong listing API)
+        # Fallback 1: primary_category_path (map qua CATEGORIES_ID_MAP)
+        # Fallback 2: _crawl_category (category đang cào) → tránh bị gán sai nam/nữ
         cat_l1 = item.get("amp_category_l1_name", "") or ""
         cat_l2 = item.get("amp_category_l2_name", "") or ""
         cat_l3 = item.get("amp_category_l3_name", "") or ""
+
         if not cat_l1:
             path = item.get("primary_category_path", "")
             ids  = [int(x) for x in str(path).split("/") if x.isdigit()] if path else []
@@ -196,6 +199,12 @@ def main():
                 if cid in CATEGORIES_ID_MAP:
                     cat_l1 = CATEGORIES_ID_MAP[cid]
                     break
+
+        # Fallback cuối: dùng category đang cào, chính xác hơn primary_category_path
+        # vì seen_ids chỉ giữ lần đầu gặp → amp trống thì tin vào crawl context
+        if not cat_l1:
+            cat_l1 = item.get("_crawl_category", "")
+
         if not cat_l2:
             path = item.get("primary_category_path", "")
             ids  = [int(x) for x in str(path).split("/") if x.isdigit()] if path else []
@@ -381,9 +390,9 @@ def main():
         if rows:
             df_ch = pd.DataFrame(rows).sort_values("revenue_increase", ascending=False)
             df_ch.to_excel(FILE_CHANGES, index=False)
-            n_new = sum(1 for r in rows if r["status"] == "NEW")
-            n_upd = sum(1 for r in rows if r["status"] == "UPDATED")
-            n_rem = sum(1 for r in rows if r["status"] == "REMOVED")
+            n_new = sum(1 for r in rows if "Sản phẩm mới" in r["status"])
+            n_upd = sum(1 for r in rows if "Đã cập nhật"  in r["status"])
+            n_rem = sum(1 for r in rows if "Đã xóa"       in r["status"])
             print(f"📊 [4/4] Changes: {n_new} mới | {n_upd} cập nhật | {n_rem} bị xóa → '{FILE_CHANGES}'")
         else:
             print("ℹ️  [4/4] Không có thay đổi nào so với ngày hôm qua.")
