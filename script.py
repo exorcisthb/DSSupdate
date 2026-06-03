@@ -44,6 +44,16 @@ REQUIRED_COLUMNS = [
     "date_collected", "time_collected"
 ]
 
+# Map ngược từ category ID → tên L1 (dùng khi amp_category không có)
+CATEGORIES_ID_MAP = {
+    915:   "Thời trang nữ",
+    931:   "Thời trang nam",
+    1686:  "Giày dép nữ",
+    1685:  "Giày dép nam",
+    27498: "Túi xách & Ví",
+    4246:  "Phụ kiện thời trang",
+}
+
 CATEGORY_L2_MAP = {
     917: "Áo nữ", 921: "Đầm nữ", 929: "Quần nữ", 933: "Áo khoác nữ", 930: "Chân váy",
     932: "Áo nam", 934: "Quần nam", 938: "Áo khoác nam", 5351: "Đồ lót nam",
@@ -174,10 +184,22 @@ def main():
         discount_pct   = round(discount_amt / original_price * 100, 1) if original_price > 0 else 0
         sold_count     = get_sold_count(item)
 
-        # Dùng category thật từ Tiki API thay vì category vòng lặp
-        cat_l1 = item.get("amp_category_l1_name", "") or item.get("category_main", "")
-        cat_l2 = item.get("amp_category_l2_name", "") or "Khác"
+        # Ưu tiên amp_category (có trong một số lần cào)
+        # Fallback về primary_category_path nếu không có amp fields
+        cat_l1 = item.get("amp_category_l1_name", "") or ""
+        cat_l2 = item.get("amp_category_l2_name", "") or ""
         cat_l3 = item.get("amp_category_l3_name", "") or ""
+        if not cat_l1:
+            path = item.get("primary_category_path", "")
+            ids  = [int(x) for x in str(path).split("/") if x.isdigit()] if path else []
+            for cid in ids:
+                if cid in CATEGORIES_ID_MAP:
+                    cat_l1 = CATEGORIES_ID_MAP[cid]
+                    break
+        if not cat_l2:
+            path = item.get("primary_category_path", "")
+            ids  = [int(x) for x in str(path).split("/") if x.isdigit()] if path else []
+            cat_l2 = next((CATEGORY_L2_MAP[c] for c in ids if c in CATEGORY_L2_MAP), "Khác")
 
         seller      = item.get("current_seller") or {}
         if isinstance(seller, str):
