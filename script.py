@@ -126,14 +126,14 @@ def main():
 
     # ----------------------------------------------------------
     # BƯỚC 1: CÀO DỮ LIỆU THÔ
-    # Không dedup ở đây - để mỗi sản phẩm giữ đúng category đang quét
-    # Dedup sau khi làm sạch (giữ lần xuất hiện đầu tiên theo đúng category)
+    # Category lấy từ amp_category_l1/l2/l3_name do Tiki trả về
+    # seen_ids global để tránh cào trùng sản phẩm
     # ----------------------------------------------------------
     raw_records = []
+    seen_ids    = set()
 
     for cat_name, cat_id in CATEGORIES.items():
         print(f"  → Quét: {cat_name}")
-        seen_in_cat = set()  # chỉ dedup trong cùng 1 category
         for page in range(1, MAX_PAGES + 1):
             data  = fetch_products(cat_id, page)
             items = data.get("data", [])
@@ -141,9 +141,8 @@ def main():
                 break
             for item in items:
                 pid = item.get("id")
-                if pid and pid not in seen_in_cat:
-                    seen_in_cat.add(pid)
-                    item["category_main"]  = cat_name
+                if pid and pid not in seen_ids:
+                    seen_ids.add(pid)
                     item["date_collected"] = ngay_hom_nay
                     item["time_collected"] = gio_hom_nay
                     raw_records.append(item)
@@ -175,9 +174,10 @@ def main():
         discount_pct   = round(discount_amt / original_price * 100, 1) if original_price > 0 else 0
         sold_count     = get_sold_count(item)
 
-        cat_path = item.get("primary_category_path", "")
-        cat_ids  = [int(x) for x in cat_path.split("/") if x.isdigit()] if isinstance(cat_path, str) else []
-        cat_l2   = next((CATEGORY_L2_MAP[c] for c in cat_ids if c in CATEGORY_L2_MAP), "Khác")
+        # Dùng category thật từ Tiki API thay vì category vòng lặp
+        cat_l1 = item.get("amp_category_l1_name", "") or item.get("category_main", "")
+        cat_l2 = item.get("amp_category_l2_name", "") or "Khác"
+        cat_l3 = item.get("amp_category_l3_name", "") or ""
 
         seller      = item.get("current_seller") or {}
         if isinstance(seller, str):
@@ -201,9 +201,9 @@ def main():
             "product_name":           item.get("name", ""),
             "product_link":           f"https://tiki.vn/{item.get('url_path', '')}" if item.get("url_path") else "",
             "brand_name":             item.get("brand_name", "") or (item.get("brand") or {}).get("name", "") if not isinstance(item.get("brand"), str) else "",
-            "category_l1":            item.get("category_main", ""),
+            "category_l1":            cat_l1,
             "category_l2":            cat_l2,
-            "category_l3":            "",
+            "category_l3":            cat_l3,
             "primary_category":       item.get("primary_category_name", ""),
             "price":                  price,
             "original_price":         original_price,
@@ -280,6 +280,27 @@ def main():
                 rv_old, rv_new = safe_int(old.get("review_count", 0)), safe_int(row["review_count"])
                 if p_old == p_new and s_old == s_new and r_old == r_new and rv_old == rv_new:
                     continue
+
+                # Tạo mô tả chi tiết thay đổi
+                details = []
+                if p_old != p_new:
+                    diff = p_new - p_old
+                    pct  = round(diff / p_old * 100, 1) if p_old > 0 else 0
+                    if diff < 0:
+                        details.append(f"Giá giảm {abs(diff):,}đ ({abs(pct)}%)")
+                    else:
+                        details.append(f"Giá tăng {diff:,}đ (+{pct}%)")
+                if s_old != s_new:
+                    diff = s_new - s_old
+                    details.append(f"Bán thêm {diff:+,} sản phẩm")
+                if r_old != r_new:
+                    diff = round(r_new - r_old, 2)
+                    details.append(f"Rating {r_old}→{r_new} ({diff:+.2f})")
+                if rv_old != rv_new:
+                    diff = rv_new - rv_old
+                    details.append(f"Review thêm {diff:+,}")
+                change_detail = " | ".join(details)
+
                 rows.append({
                     "product_id": pid, "product_name": row["product_name"],
                     "product_link": row["product_link"], "category": row["category_l1"],
@@ -293,7 +314,9 @@ def main():
                     "rating_change": round(r_new - r_old, 2),
                     "review_old": rv_old, "review_new": rv_new,
                     "review_increase": rv_new - rv_old,
-                    "date_compared": ngay_hom_nay, "status": "UPDATED"
+                    "date_compared": ngay_hom_nay,
+                    "status": "🔄 Đã cập nhật",
+                    "change_detail": change_detail,
                 })
             else:
                 rows.append({
@@ -309,7 +332,9 @@ def main():
                     "rating_change": float(row["rating"] or 0),
                     "review_old": 0, "review_new": safe_int(row["review_count"]),
                     "review_increase": safe_int(row["review_count"]),
-                    "date_compared": ngay_hom_nay, "status": "NEW"
+                    "date_compared": ngay_hom_nay,
+                    "status": "🆕 Sản phẩm mới",
+                    "change_detail": "Xuất hiện lần đầu trong danh sách",
                 })
 
         # Sản phẩm bị xóa
@@ -326,7 +351,9 @@ def main():
                     "rating_old": float(old.get("rating", 0) or 0), "rating_new": 0,
                     "rating_change": -float(old.get("rating", 0) or 0),
                     "review_old": safe_int(old.get("review_count", 0)), "review_new": 0, "review_increase": 0,
-                    "date_compared": ngay_hom_nay, "status": "REMOVED"
+                    "date_compared": ngay_hom_nay,
+                    "status": "❌ Đã xóa",
+                    "change_detail": "Không còn xuất hiện trong danh sách",
                 })
 
         if rows:
