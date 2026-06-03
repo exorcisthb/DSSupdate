@@ -1,79 +1,48 @@
 import requests
 import pandas as pd
 import time
-from datetime import datetime, timedelta
-import os
 import ast
+import os
+from datetime import datetime, timedelta
 
 # ============================================================
-# CẤU HÌNH HỆ THỐNG FILE (4 TẦNG CHUẨN ĐÚNG MẪU)
+# CẤU HÌNH
 # ============================================================
-FILE_RAW        = "tiki_raw_data.xlsx"         # Ghi đè dữ liệu thô hôm nay
-FILE_CLEAN      = "tiki_clean_data.xlsx"       # Ghi đè dữ liệu sạch hôm nay
-FILE_HISTORICAL = "tiki_historical_data.xlsx"  # Gom dữ liệu sạch cũ (Tối đa 5 ngày)
-FILE_CHANGES    = "tiki_changes_report.xlsx"   # Báo cáo thay đổi so với ngày hôm qua
+FILE_RAW        = "tiki_raw_data.xlsx"
+FILE_CLEAN      = "tiki_clean_data.xlsx"
+FILE_HISTORICAL = "tiki_historical_data.xlsx"
+FILE_CHANGES    = "tiki_changes_report.xlsx"
 
-MAX_PAGES   = 10
-PAGE_SIZE   = 40
-DELAY       = 1.2
+MAX_PAGES = 10
+PAGE_SIZE = 40
+DELAY     = 1.2
 
 CATEGORIES = {
-    "Thời trang nữ":         915,
-    "Thời trang nam":        931,
-    "Giày dép nữ":           1686,
-    "Giày dép nam":          1685,
-    "Túi xách & Ví":         27498,
-    "Phụ kiện thời trang":   4246,
+    "Thời trang nữ":       915,
+    "Thời trang nam":      931,
+    "Giày dép nữ":         1686,
+    "Giày dép nam":        1685,
+    "Túi xách & Ví":       27498,
+    "Phụ kiện thời trang": 4246,
 }
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/plain, */*",
+    "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept":          "application/json, text/plain, */*",
     "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8",
-    "Referer": "https://tiki.vn/",
+    "Referer":         "https://tiki.vn/",
 }
 
-# Định nghĩa chuẩn xác danh sách 31 cột cần có cho file Clean và History (thêm product_link)
 REQUIRED_COLUMNS = [
-    "product_id", "product_name", "product_link", "brand_name", "category_l1", "category_l2",
-    "category_l3", "primary_category", "price", "original_price", "discount_amount",
-    "discount_percent", "rating", "review_count", "sold_count", "favourite_count",
-    "estimated_revenue", "seller_id", "seller_type", "is_official_store", "tiki_verified",
-    "is_tiki_now", "is_freeship", "delivery_estimate_days", "order_route", "origin",
-    "is_imported", "is_authentic", "is_top_brand", "date_collected", "time_collected"
+    "product_id", "product_name", "product_link", "brand_name",
+    "category_l1", "category_l2", "category_l3", "primary_category",
+    "price", "original_price", "discount_amount", "discount_percent",
+    "rating", "review_count", "sold_count", "favourite_count",
+    "estimated_revenue", "seller_id", "seller_type", "is_official_store",
+    "tiki_verified", "is_tiki_now", "is_freeship", "delivery_estimate_days",
+    "order_route", "origin", "is_imported", "is_authentic", "is_top_brand",
+    "date_collected", "time_collected"
 ]
-
-def fetch_products(category_id: int, page: int) -> dict:
-    url = "https://tiki.vn/api/personalish/v1/blocks/listings"
-    params = {
-        "limit": PAGE_SIZE,
-        "page": page,
-        "category": category_id,
-        "sort": "top_seller",
-        "urlKey": "thoi-trang-phu-kien",
-    }
-    try:
-        resp = requests.get(url, params=params, headers=HEADERS, timeout=15)
-        resp.raise_for_status()
-        return resp.json()
-    except Exception as e:
-        print(f"  ⚠️ Lỗi request trang {page}: {e}")
-        return {}
-
-def safe_eval_list(val):
-    if val is None:
-        return []
-    try:
-        if pd.isna(val):
-            return []
-    except (TypeError, ValueError):
-        pass
-    if isinstance(val, list):
-        return val
-    try:
-        return ast.literal_eval(str(val))
-    except:
-        return []
 
 CATEGORY_L2_MAP = {
     917: "Áo nữ", 921: "Đầm nữ", 929: "Quần nữ", 933: "Áo khoác nữ", 930: "Chân váy",
@@ -85,343 +54,294 @@ CATEGORY_L2_MAP = {
 }
 
 # ============================================================
-# TIẾN TRÌNH XỬ LÝ CHÍNH
+# HÀM TIỆN ÍCH
+# ============================================================
+def fetch_products(category_id: int, page: int) -> dict:
+    url = "https://tiki.vn/api/personalish/v1/blocks/listings"
+    params = {
+        "limit": PAGE_SIZE, "page": page,
+        "category": category_id, "sort": "top_seller",
+        "urlKey": "thoi-trang-phu-kien",
+    }
+    try:
+        resp = requests.get(url, params=params, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        print(f"  ⚠️ Lỗi request trang {page}: {e}")
+        return {}
+
+def safe_int(val, default=0):
+    try:
+        return int(val)
+    except:
+        return default
+
+def get_sold_count(item):
+    if item.get("quantity_sold_value") is not None:
+        return safe_int(item.get("quantity_sold_value"))
+    q_sold = item.get("quantity_sold")
+    if isinstance(q_sold, dict):
+        return q_sold.get("value", 0)
+    if isinstance(q_sold, str) and "value" in q_sold:
+        try:
+            return ast.literal_eval(q_sold).get("value", 0)
+        except:
+            pass
+    return safe_int(item.get("order_count", 0))
+
+def load_clean_file_if_yesterday(ngay_hom_nay: str) -> pd.DataFrame:
+    """Đọc file clean CŨ - chỉ dùng nếu dữ liệu là của ngày KHÁC hôm nay."""
+    if not os.path.exists(FILE_CLEAN):
+        print("ℹ️  Chưa có file clean cũ.")
+        return pd.DataFrame()
+    try:
+        df = pd.read_excel(FILE_CLEAN, dtype={"product_id": str})
+        if df.empty or "date_collected" not in df.columns:
+            return pd.DataFrame()
+        ngay_trong_file = str(df["date_collected"].iloc[0])[:10]
+        if ngay_trong_file == ngay_hom_nay:
+            print(f"⚠️  File clean hiện tại đã là dữ liệu hôm nay ({ngay_hom_nay}). Bỏ qua history/changes.")
+            return pd.DataFrame()
+        print(f"📂 Tìm thấy dữ liệu cũ ngày {ngay_trong_file} để so sánh.")
+        return df
+    except Exception as e:
+        print(f"⚠️  Không đọc được file clean cũ: {e}")
+        return pd.DataFrame()
+
+# ============================================================
+# MAIN
 # ============================================================
 def main():
-    time_vn = datetime.utcnow() + timedelta(hours=7)
+    time_vn      = datetime.utcnow() + timedelta(hours=7)
     ngay_hom_nay = time_vn.strftime("%Y-%m-%d")
-    gio_hom_nay  = time_vn.strftime("%H:%M:%S") 
-    
+    gio_hom_nay  = time_vn.strftime("%H:%M:%S")
+
+    print(f"🤖 Pipeline khởi chạy | Giờ VN: {ngay_hom_nay} {gio_hom_nay}")
+
+    # ----------------------------------------------------------
+    # ĐỌC DỮ LIỆU CŨ TRƯỚC KHI CÀO (quan trọng - phải đọc trước)
+    # ----------------------------------------------------------
+    df_clean_old = load_clean_file_if_yesterday(ngay_hom_nay)
+
+    # ----------------------------------------------------------
+    # BƯỚC 1: CÀO DỮ LIỆU THÔ
+    # ----------------------------------------------------------
     raw_records = []
-    seen_ids = set()
-    
-    print(f"🤖 Khởi chạy hệ thống pipeline dữ liệu (Giờ VN: {ngay_hom_nay} {time_vn.strftime('%H:%M:%S')})...")
-    
+    seen_ids    = set()
+
     for cat_name, cat_id in CATEGORIES.items():
-        print(f"-> Đang quét ngành hàng: {cat_name}")
+        print(f"  → Quét: {cat_name}")
         for page in range(1, MAX_PAGES + 1):
-            data = fetch_products(cat_id, page)
-            if not data:
-                break
+            data  = fetch_products(cat_id, page)
             items = data.get("data", [])
             if not items:
                 break
-                
             for item in items:
                 pid = item.get("id")
                 if pid and pid not in seen_ids:
                     seen_ids.add(pid)
-                    
-                    item_raw = item.copy()
-                    item_raw["category_main"] = cat_name
-                    item_raw["date_collected"] = ngay_hom_nay
-                    item_raw["time_collected"] = gio_hom_nay
-                    raw_records.append(item_raw)
-            
+                    item["category_main"]  = cat_name
+                    item["date_collected"] = ngay_hom_nay
+                    item["time_collected"] = gio_hom_nay
+                    raw_records.append(item)
             paging = data.get("paging", {})
             if page * PAGE_SIZE >= paging.get("total", 0):
                 break
             time.sleep(DELAY)
-            
+
     if not raw_records:
-        print("❌ Không lấy được dữ liệu thô mới từ API!")
+        print("❌ Không lấy được dữ liệu thô!")
         return
 
-    # --------------------------------------------------------
-    # BƯỚC 1: GHI ĐÈ FILE RAW DATA (Bảo toàn dữ liệu thô gốc)
-    # --------------------------------------------------------
-    processed_raw = []
-    for item in raw_records:
-        rec = {}
-        for k, v in item.items():
-            if isinstance(v, (dict, list)):
-                rec[k] = str(v)
-            else:
-                rec[k] = v
-        processed_raw.append(rec)
-        
-    df_raw_today = pd.DataFrame(processed_raw)
-    df_raw_today.to_excel(FILE_RAW, index=False)
-    print(f"💾 1. Đã cập nhật ghi đè file thô gốc '{FILE_RAW}' thành công.")
+    # Ghi raw (flatten dict/list thành string)
+    df_raw = pd.DataFrame([
+        {k: str(v) if isinstance(v, (dict, list)) else v for k, v in r.items()}
+        for r in raw_records
+    ])
+    df_raw.to_excel(FILE_RAW, index=False)
+    print(f"💾 [1/4] Đã lưu raw data: {len(df_raw)} sản phẩm → '{FILE_RAW}'")
 
-    # --------------------------------------------------------
-    # BƯỚC 2: TÍNH TOÁN LÀM SẠCH DỮ LIỆU CỦA NGÀY HÔM NAY (CLEAN DATA)
-    # --------------------------------------------------------
+    # ----------------------------------------------------------
+    # BƯỚC 2: LÀM SẠCH → CLEAN DATA HÔM NAY
+    # ----------------------------------------------------------
     clean_records = []
     for item in raw_records:
-        price = item.get("price", 0)
+        price          = item.get("price", 0)
         original_price = item.get("original_price", price)
-        discount_amount = original_price - price if original_price > price else 0
-        
-        sold_count = 0
-        if item.get("quantity_sold_value") is not None:
-            try:
-                sold_count = int(item.get("quantity_sold_value"))
-            except:
-                pass
-        else:
-            q_sold = item.get("quantity_sold")
-            if isinstance(q_sold, dict):
-                sold_count = q_sold.get("value", 0)
-            elif isinstance(q_sold, str) and "value" in q_sold:
-                try:
-                    sold_count = ast.literal_eval(q_sold).get("value", 0)
-                except:
-                    sold_count = item.get("order_count", 0)
-            else:
-                sold_count = item.get("order_count", 0)
-        
-        estimated_revenue = price * sold_count
-        
+        discount_amt   = max(0, original_price - price)
+        discount_pct   = round(discount_amt / original_price * 100, 1) if original_price > 0 else 0
+        sold_count     = get_sold_count(item)
+
         cat_path = item.get("primary_category_path", "")
-        cat_ids = [int(x) for x in cat_path.split("/") if x.isdigit()] if isinstance(cat_path, str) else []
-        
-        category_l2 = "Khác"
-        for cid in cat_ids:
-            if cid in CATEGORY_L2_MAP:
-                category_l2 = CATEGORY_L2_MAP[cid]
-                break
-                
-        badges_list = safe_eval_list(item.get("badges_new")) + safe_eval_list(item.get("badges_v3"))
-        badge_codes = [b.get("code") for b in badges_list if isinstance(b, dict) and b.get("code")]
-        
-        is_official = "official_store" in badge_codes or item.get("inventory_status") == "available" and "rẻ hơn hoàn tiền" in str(badges_list).lower()
-        tiki_verified = "tiki_verified" in badge_codes or "chính hãng" in str(badges_list).lower()
-        is_tiki_now = "tikinow" in badge_codes
-        is_freeship = "freeship_xtra" in badge_codes or "freeship" in str(badges_list).lower()
-        is_top_brand = "top_brand" in badge_codes
-        
-        # Tạo link sản phẩm từ product_id và url_key
-        product_id = item.get("id")
-        url_key = item.get("url_key", "")
-        product_link = f"https://tiki.vn/{url_key}-p{product_id}.html" if url_key else f"https://tiki.vn/product-p{product_id}.html"
-        
-        # Tạo dữ liệu bằng DataFrame từ đầu để loại trừ tuyệt đối lỗi lệch chiều dài mảng
-        clean_rec = {col: None for col in REQUIRED_COLUMNS}
-        clean_rec["product_id"]             = product_id
-        clean_rec["product_name"]           = item.get("name", "")
-        clean_rec["product_link"]           = product_link
-        clean_rec["brand_name"]             = item.get("brand_name", "OEM")
-        clean_rec["category_l1"]            = item.get("category_main")
-        clean_rec["category_l2"]            = category_l2
-        clean_rec["category_l3"]            = category_l2
-        clean_rec["primary_category"]       = item.get("category_main")
-        clean_rec["price"]                  = price
-        clean_rec["original_price"]         = original_price
-        clean_rec["discount_amount"]        = discount_amount
-        clean_rec["discount_percent"]       = item.get("discount_rate", 0)
-        clean_rec["rating"]                 = item.get("rating_average", 0)
-        clean_rec["review_count"]           = item.get("review_count", 0)
-        clean_rec["sold_count"]             = sold_count
-        clean_rec["favourite_count"]        = item.get("favourite_count", 0)
-        clean_rec["estimated_revenue"]      = estimated_revenue
-        clean_rec["seller_id"]              = item.get("seller_id", 0)
-        clean_rec["seller_type"]            = "OFFICIAL_STORE" if is_official else "NONE"
-        clean_rec["is_official_store"]      = bool(is_official)
-        clean_rec["tiki_verified"]          = bool(tiki_verified)
-        clean_rec["is_tiki_now"]            = bool(is_tiki_now)
-        clean_rec["is_freeship"]            = bool(is_freeship)
-        clean_rec["delivery_estimate_days"] = 1 if is_tiki_now else 3
-        clean_rec["order_route"]            = "same_province"
-        clean_rec["origin"]                 = "Việt Nam"
-        clean_rec["is_imported"]            = False
-        clean_rec["is_authentic"]           = True
-        clean_rec["is_top_brand"]           = bool(is_top_brand)
-        clean_rec["date_collected"]         = str(ngay_hom_nay)
-        clean_rec["time_collected"]         = str(gio_hom_nay)
-        
-        clean_records.append(clean_rec)
-        
-    df_clean_today = pd.DataFrame(clean_records, columns=REQUIRED_COLUMNS)
+        cat_ids  = [int(x) for x in cat_path.split("/") if x.isdigit()] if isinstance(cat_path, str) else []
+        cat_l2   = next((CATEGORY_L2_MAP[c] for c in cat_ids if c in CATEGORY_L2_MAP), "Khác")
 
-    # --------------------------------------------------------
-    # BƯỚC 3: KIỂM TRA VÀ GỘP LỊCH SỬ AN TOÀN
-    # --------------------------------------------------------
-    df_clean_old = pd.DataFrame()
-    if os.path.exists(FILE_CLEAN):
-        try:
-            df_tmp = pd.read_excel(FILE_CLEAN)
-            # Khóa chống lỗi cấu trúc: Chỉ lấy nếu file cũ có đủ số lượng cột chuẩn
-            if len(df_tmp.columns) == len(REQUIRED_COLUMNS):
-                df_clean_old = df_tmp
-                print("📦 Đang tiến hành chuyển dữ liệu sạch ngày cũ vào kho lịch sử...")
-            else:
-                print("⚠️ Phát hiện file Clean cũ bị lệch cột, bỏ qua gộp để tránh sập hệ thống.")
-        except Exception:
-            pass
+        seller      = item.get("current_seller") or {}
+        if isinstance(seller, str):
+            try: seller = ast.literal_eval(seller)
+            except: seller = {}
 
+        badges      = item.get("badges_new") or []
+        if isinstance(badges, str):
+            try: badges = ast.literal_eval(badges)
+            except: badges = []
+        badge_names = [b.get("code", "") for b in badges if isinstance(b, dict)]
+
+        shipping    = item.get("shipping_info") or {}
+        if isinstance(shipping, str):
+            try: shipping = ast.literal_eval(shipping)
+            except: shipping = {}
+
+        pid = str(item.get("id", ""))
+        clean_records.append({
+            "product_id":             pid,
+            "product_name":           item.get("name", ""),
+            "product_link":           f"https://tiki.vn/{item.get('url_path', '')}" if item.get("url_path") else "",
+            "brand_name":             item.get("brand_name", "") or (item.get("brand") or {}).get("name", "") if not isinstance(item.get("brand"), str) else "",
+            "category_l1":            item.get("category_main", ""),
+            "category_l2":            cat_l2,
+            "category_l3":            "",
+            "primary_category":       item.get("primary_category_name", ""),
+            "price":                  price,
+            "original_price":         original_price,
+            "discount_amount":        discount_amt,
+            "discount_percent":       discount_pct,
+            "rating":                 round(float(item.get("rating_average", 0) or 0), 1),
+            "review_count":           safe_int(item.get("review_count", 0)),
+            "sold_count":             sold_count,
+            "favourite_count":        safe_int(item.get("favourite_count", 0)),
+            "estimated_revenue":      price * sold_count,
+            "seller_id":              seller.get("id", item.get("seller_id", "")),
+            "seller_type":            seller.get("store_type", item.get("seller_type", "")),
+            "is_official_store":      bool(seller.get("is_official", False)),
+            "tiki_verified":          "tiki_verified" in badge_names,
+            "is_tiki_now":            bool(item.get("is_tikinow_delivery", False)),
+            "is_freeship":            bool(item.get("freeship_campaign", False)),
+            "delivery_estimate_days": round(float(shipping.get("estimate_days", 0) or 0), 1),
+            "order_route":            item.get("order_route", ""),
+            "origin":                 item.get("origin", ""),
+            "is_imported":            bool(item.get("is_imported", False)),
+            "is_authentic":           bool(item.get("is_authentic", False)),
+            "is_top_brand":           bool(item.get("is_top_brand", False)),
+            "date_collected":         ngay_hom_nay,
+            "time_collected":         gio_hom_nay,
+        })
+
+    df_clean_today = pd.DataFrame(clean_records)[REQUIRED_COLUMNS]
+    print(f"🧹 [2/4] Làm sạch xong: {len(df_clean_today)} sản phẩm")
+
+    # ----------------------------------------------------------
+    # BƯỚC 3: CẬP NHẬT HISTORICAL (đẩy clean CŨ vào lịch sử)
+    # ----------------------------------------------------------
     if not df_clean_old.empty:
-        df_history_old = pd.DataFrame()
+        df_hist_old = pd.DataFrame()
         if os.path.exists(FILE_HISTORICAL):
             try:
-                df_tmp_hist = pd.read_excel(FILE_HISTORICAL)
-                if len(df_tmp_hist.columns) == len(REQUIRED_COLUMNS):
-                    df_history_old = df_tmp_hist
-            except Exception:
+                df_hist_old = pd.read_excel(FILE_HISTORICAL, dtype={"product_id": str})
+            except:
                 pass
-                
-        # Đồng bộ gộp dữ liệu lịch sử
-        df_history_combined = pd.concat([df_history_old, df_clean_old], ignore_index=True)
-        
-        # Ép định dạng ngày tháng và xóa trùng lặp
-        df_history_combined["date_collected"] = pd.to_datetime(df_history_combined["date_collected"], errors="coerce")
-        df_history_combined = df_history_combined.dropna(subset=["date_collected"])
-        df_history_combined["date_collected"] = df_history_combined["date_collected"].dt.strftime('%Y-%m-%d')
-        
-        if "product_id" in df_history_combined.columns:
-            df_history_combined = df_history_combined.drop_duplicates(subset=["date_collected", "product_id"]).reset_index(drop=True)
-        
-        # Giới hạn giữ tối đa 5 ngày gần nhất
-        unique_days = sorted(df_history_combined["date_collected"].unique(), reverse=True)
-        top_5_days  = unique_days[:5]
-        df_history_final = df_history_combined[df_history_combined["date_collected"].isin(top_5_days)]
-        
-        df_history_final.to_excel(FILE_HISTORICAL, index=False)
-        print(f"💾 2. Kho lịch sử '{FILE_HISTORICAL}' đã cập nhật an toàn. (Lưu giữ: {top_5_days})")
 
-    # --------------------------------------------------------
-    # BƯỚC 4: SO SÁNH VÀ TẠO BÁO CÁO THAY ĐỔI
-    # --------------------------------------------------------
-    changes_data = []
-    
-    if not df_clean_old.empty:
-        print("📊 Đang phân tích thay đổi so với ngày hôm qua...")
-        
-        # Chuyển sang dict để tra cứu nhanh
-        old_products = {}
-        for _, row in df_clean_old.iterrows():
-            pid = row.get("product_id")
-            if pid:
-                old_products[pid] = row
-        
-        # So sánh từng sản phẩm
-        for _, today_row in df_clean_today.iterrows():
-            pid = today_row.get("product_id")
-            if not pid:
-                continue
-                
-            if pid in old_products:
-                old_row = old_products[pid]
-                changes = {}
-                
-                # So sánh các trường quan trọng
-                price_old = old_row.get("price", 0)
-                price_new = today_row.get("price", 0)
-                sold_old = old_row.get("sold_count", 0)
-                sold_new = today_row.get("sold_count", 0)
-                rating_old = old_row.get("rating", 0)
-                rating_new = today_row.get("rating", 0)
-                review_old = old_row.get("review_count", 0)
-                review_new = today_row.get("review_count", 0)
-                
-                # Chỉ ghi nhận nếu có thay đổi
-                if (price_old != price_new or sold_old != sold_new or 
-                    rating_old != rating_new or review_old != review_new):
-                    
-                    changes["product_id"] = pid
-                    changes["product_name"] = today_row.get("product_name", "")
-                    changes["product_link"] = today_row.get("product_link", "")
-                    changes["category"] = today_row.get("category_l1", "")
-                    changes["brand_name"] = today_row.get("brand_name", "")
-                    
-                    # Giá
-                    changes["price_old"] = price_old
-                    changes["price_new"] = price_new
-                    changes["price_change"] = price_new - price_old
-                    changes["price_change_percent"] = round((price_new - price_old) / price_old * 100, 2) if price_old > 0 else 0
-                    
-                    # Số lượng bán
-                    changes["sold_count_old"] = sold_old
-                    changes["sold_count_new"] = sold_new
-                    changes["sold_count_increase"] = sold_new - sold_old
-                    
-                    # Doanh thu ước tính mới tăng
-                    changes["revenue_increase"] = (sold_new - sold_old) * price_new
-                    
-                    # Đánh giá
-                    changes["rating_old"] = rating_old
-                    changes["rating_new"] = rating_new
-                    changes["rating_change"] = round(rating_new - rating_old, 2)
-                    
-                    # Số lượng review
-                    changes["review_count_old"] = review_old
-                    changes["review_count_new"] = review_new
-                    changes["review_count_increase"] = review_new - review_old
-                    
-                    changes["date_compared"] = str(ngay_hom_nay)
-                    changes["status"] = "UPDATED"
-                    
-                    changes_data.append(changes)
-            else:
-                # Sản phẩm mới
-                changes_data.append({
-                    "product_id": pid,
-                    "product_name": today_row.get("product_name", ""),
-                    "product_link": today_row.get("product_link", ""),
-                    "category": today_row.get("category_l1", ""),
-                    "brand_name": today_row.get("brand_name", ""),
-                    "price_old": 0,
-                    "price_new": today_row.get("price", 0),
-                    "price_change": today_row.get("price", 0),
-                    "price_change_percent": 0,
-                    "sold_count_old": 0,
-                    "sold_count_new": today_row.get("sold_count", 0),
-                    "sold_count_increase": today_row.get("sold_count", 0),
-                    "revenue_increase": today_row.get("estimated_revenue", 0),
-                    "rating_old": 0,
-                    "rating_new": today_row.get("rating", 0),
-                    "rating_change": today_row.get("rating", 0),
-                    "review_count_old": 0,
-                    "review_count_new": today_row.get("review_count", 0),
-                    "review_count_increase": today_row.get("review_count", 0),
-                    "date_compared": str(ngay_hom_nay),
-                    "status": "NEW"
-                })
-        
-        # Tìm sản phẩm bị xóa/không còn
-        today_ids = set(df_clean_today["product_id"].values)
-        for pid, old_row in old_products.items():
-            if pid not in today_ids:
-                changes_data.append({
-                    "product_id": pid,
-                    "product_name": old_row.get("product_name", ""),
-                    "product_link": old_row.get("product_link", ""),
-                    "category": old_row.get("category_l1", ""),
-                    "brand_name": old_row.get("brand_name", ""),
-                    "price_old": old_row.get("price", 0),
-                    "price_new": 0,
-                    "price_change": -old_row.get("price", 0),
-                    "price_change_percent": -100,
-                    "sold_count_old": old_row.get("sold_count", 0),
-                    "sold_count_new": 0,
-                    "sold_count_increase": 0,
-                    "revenue_increase": 0,
-                    "rating_old": old_row.get("rating", 0),
-                    "rating_new": 0,
-                    "rating_change": -old_row.get("rating", 0),
-                    "review_count_old": old_row.get("review_count", 0),
-                    "review_count_new": 0,
-                    "review_count_increase": 0,
-                    "date_compared": str(ngay_hom_nay),
-                    "status": "REMOVED"
-                })
-        
-        if changes_data:
-            df_changes = pd.DataFrame(changes_data)
-            # Sắp xếp theo doanh thu tăng giảm nhiều nhất
-            df_changes = df_changes.sort_values("revenue_increase", ascending=False)
-            df_changes.to_excel(FILE_CHANGES, index=False)
-            print(f"📈 4. Đã tạo báo cáo thay đổi '{FILE_CHANGES}' với {len(changes_data)} thay đổi!")
-        else:
-            print("ℹ️  Không có thay đổi nào so với ngày hôm qua.")
+        df_hist = pd.concat([df_hist_old, df_clean_old], ignore_index=True)
+        df_hist["date_collected"] = pd.to_datetime(df_hist["date_collected"], errors="coerce").dt.strftime("%Y-%m-%d")
+        df_hist = df_hist.dropna(subset=["date_collected"])
+
+        if "product_id" in df_hist.columns:
+            df_hist = df_hist.drop_duplicates(subset=["date_collected", "product_id"])
+
+        # Giữ tối đa 5 ngày gần nhất
+        top5 = sorted(df_hist["date_collected"].unique(), reverse=True)[:5]
+        df_hist = df_hist[df_hist["date_collected"].isin(top5)].reset_index(drop=True)
+        df_hist.to_excel(FILE_HISTORICAL, index=False)
+        print(f"📚 [3/4] Historical cập nhật: {top5} → '{FILE_HISTORICAL}'")
     else:
-        print("ℹ️  Không có dữ liệu ngày hôm qua để so sánh.")
+        print("ℹ️  [3/4] Bỏ qua historical (không có dữ liệu cũ hợp lệ).")
 
-    # --------------------------------------------------------
-    # BƯỚC 5: GHI ĐÈ FILE CLEAN DATA MỚI NHẤT HÔM NAY (Đúng 31 cột)
-    # --------------------------------------------------------
+    # ----------------------------------------------------------
+    # BƯỚC 4: SO SÁNH CHANGES
+    # ----------------------------------------------------------
+    if not df_clean_old.empty:
+        old_map = {str(r["product_id"]): r for _, r in df_clean_old.iterrows()}
+        today_ids = set(df_clean_today["product_id"].astype(str))
+        rows = []
+
+        for _, row in df_clean_today.iterrows():
+            pid = str(row["product_id"])
+            if pid in old_map:
+                old = old_map[pid]
+                p_old, p_new   = old.get("price", 0), row["price"]
+                s_old, s_new   = safe_int(old.get("sold_count", 0)), safe_int(row["sold_count"])
+                r_old, r_new   = float(old.get("rating", 0) or 0), float(row["rating"] or 0)
+                rv_old, rv_new = safe_int(old.get("review_count", 0)), safe_int(row["review_count"])
+                if p_old == p_new and s_old == s_new and r_old == r_new and rv_old == rv_new:
+                    continue
+                rows.append({
+                    "product_id": pid, "product_name": row["product_name"],
+                    "product_link": row["product_link"], "category": row["category_l1"],
+                    "brand_name": row["brand_name"],
+                    "price_old": p_old, "price_new": p_new,
+                    "price_change": p_new - p_old,
+                    "price_change_pct": round((p_new - p_old) / p_old * 100, 2) if p_old > 0 else 0,
+                    "sold_old": s_old, "sold_new": s_new, "sold_increase": s_new - s_old,
+                    "revenue_increase": (s_new - s_old) * p_new,
+                    "rating_old": r_old, "rating_new": r_new,
+                    "rating_change": round(r_new - r_old, 2),
+                    "review_old": rv_old, "review_new": rv_new,
+                    "review_increase": rv_new - rv_old,
+                    "date_compared": ngay_hom_nay, "status": "UPDATED"
+                })
+            else:
+                rows.append({
+                    "product_id": pid, "product_name": row["product_name"],
+                    "product_link": row["product_link"], "category": row["category_l1"],
+                    "brand_name": row["brand_name"],
+                    "price_old": 0, "price_new": row["price"],
+                    "price_change": row["price"], "price_change_pct": 0,
+                    "sold_old": 0, "sold_new": safe_int(row["sold_count"]),
+                    "sold_increase": safe_int(row["sold_count"]),
+                    "revenue_increase": safe_int(row["estimated_revenue"]),
+                    "rating_old": 0, "rating_new": float(row["rating"] or 0),
+                    "rating_change": float(row["rating"] or 0),
+                    "review_old": 0, "review_new": safe_int(row["review_count"]),
+                    "review_increase": safe_int(row["review_count"]),
+                    "date_compared": ngay_hom_nay, "status": "NEW"
+                })
+
+        # Sản phẩm bị xóa
+        for pid, old in old_map.items():
+            if pid not in today_ids:
+                rows.append({
+                    "product_id": pid, "product_name": old.get("product_name", ""),
+                    "product_link": old.get("product_link", ""), "category": old.get("category_l1", ""),
+                    "brand_name": old.get("brand_name", ""),
+                    "price_old": old.get("price", 0), "price_new": 0,
+                    "price_change": -old.get("price", 0), "price_change_pct": -100,
+                    "sold_old": safe_int(old.get("sold_count", 0)), "sold_new": 0, "sold_increase": 0,
+                    "revenue_increase": 0,
+                    "rating_old": float(old.get("rating", 0) or 0), "rating_new": 0,
+                    "rating_change": -float(old.get("rating", 0) or 0),
+                    "review_old": safe_int(old.get("review_count", 0)), "review_new": 0, "review_increase": 0,
+                    "date_compared": ngay_hom_nay, "status": "REMOVED"
+                })
+
+        if rows:
+            df_ch = pd.DataFrame(rows).sort_values("revenue_increase", ascending=False)
+            df_ch.to_excel(FILE_CHANGES, index=False)
+            n_new = sum(1 for r in rows if r["status"] == "NEW")
+            n_upd = sum(1 for r in rows if r["status"] == "UPDATED")
+            n_rem = sum(1 for r in rows if r["status"] == "REMOVED")
+            print(f"📊 [4/4] Changes: {n_new} mới | {n_upd} cập nhật | {n_rem} bị xóa → '{FILE_CHANGES}'")
+        else:
+            print("ℹ️  [4/4] Không có thay đổi nào so với ngày hôm qua.")
+    else:
+        print("ℹ️  [4/4] Bỏ qua changes (không có dữ liệu cũ hợp lệ).")
+
+    # ----------------------------------------------------------
+    # BƯỚC 5: GHI ĐÈ CLEAN DATA HÔM NAY (luôn làm cuối cùng)
+    # ----------------------------------------------------------
     df_clean_today.to_excel(FILE_CLEAN, index=False)
-    print(f"🎯 5. Đã làm sạch và cập nhật thành công dữ liệu mới vào file sạch '{FILE_CLEAN}'!")
+    print(f"✅ [5/4] Đã ghi clean data hôm nay → '{FILE_CLEAN}'")
+    print(f"🎉 Pipeline hoàn tất!")
 
 
 if __name__ == "__main__":
