@@ -1,0 +1,23 @@
+# Core dependencies
+pandas>=2.0.0
+openpyxl>=3.1.0
+numpy>=1.24.0
+
+# Database
+sqlalchemy==2.0.25
+psycopg2-binary==2.9.9  # For PostgreSQL (optional, comment out if using SQLite only)
+
+# API & Web
+flask==3.0.0
+flask-cors==4.0.0
+werkzeug==3.0.1
+
+# GitHub API
+requests==2.31.0
+
+# CLI & Utilities
+python-dotenv==1.0.0
+click==8.1.7
+
+# Scheduling (for future automation)
+APScheduler==3.10.4

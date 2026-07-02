@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSS - Upload Dữ Liệu Đối Thủ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #444;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .file-upload-area {
+            border: 3px dashed #e0e0e0;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafafa;
+        }
+        
+        .file-upload-area:hover {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+        
+        .file-upload-area.dragover {
+            border-color: #667eea;
+            background: #e8ebff;
+        }
+        
+        .file-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .file-name {
+            margin-top: 15px;
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #f0f0f0;
+        }
+        
+        .stat-card {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Cập nhật dữ liệu đối thủ</h1>
+        <p class="subtitle">Upload file Excel từ Lazada hoặc Shopee</p>
+        
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="platform">Chọn nền tảng:</label>
+                <select id="platform" required>
+                    <option value="">-- Chọn nền tảng --</option>
+                    <option value="lazada">Lazada</option>
+                    <option value="shopee">Shopee</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Chọn file Excel:</label>
+                <div class="file-upload-area" id="dropArea">
+                    <div class="file-icon">📁</div>
+                    <p>Kéo thả file vào đây hoặc click để chọn</p>
+                    <p style="font-size: 12px; color: #999; margin-top: 10px;">
+                        Chỉ chấp nhận file .xlsx hoặc .xls (tối đa 16MB)
+                    </p>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls" required>
+                    <div class="file-name" id="fileName"></div>
+                </div>
+            </div>
+            
+            <button type="submit" id="submitBtn">
+                <span id="btnText">Upload và Xử Lý</span>
+            </button>
+        </form>
+        
+        <div class="message" id="message"></div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="tikiCount">-</div>
+                <div class="stat-label">Tiki</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="lazadaCount">-</div>
+                <div class="stat-label">Lazada</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="shopeeCount">-</div>
+                <div class="stat-label">Shopee</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:5000';
+        
+        // Elements
+        const dropArea = document.getElementById('dropArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileName = document.getElementById('fileName');
+        const uploadForm = document.getElementById('uploadForm');
+        const message = document.getElementById('message');
+        const submitBtn = document.getElementById('submitBtn');
+        const btnText = document.getElementById('btnText');
+        
+        // Click to select file
+        dropArea.addEventListener('click', () => fileInput.click());
+        
+        // File selection
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                fileName.textContent = `✅ ${file.name}`;
+            }
+        });
+        
+        // Drag and drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.add('dragover');
+            });
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.remove('dragover');
+            });
+        });
+        
+        dropArea.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            fileInput.files = files;
+            
+            if (files.length > 0) {
+                fileName.textContent = `✅ ${files[0].name}`;
+            }
+        });
+        
+        // Form submission
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const platform = document.getElementById('platform').value;
+            const file = fileInput.files[0];
+            
+            if (!platform || !file) {
+                showMessage('Vui lòng chọn nền tảng và file', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('platform', platform);
+            
+            // Show loading
+            submitBtn.disabled = true;
+            btnText.innerHTML = '<div class="loading"></div>';
+            message.style.display = 'none';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showMessage(
+                        `✅ Thành công! Đã xử lý ${data.records_count} sản phẩm ${platform}`,
+                        'success'
+                    );
+                    uploadForm.reset();
+                    fileName.textContent = '';
+                    loadStats();
+                } else {
+                    showMessage(`❌ Lỗi: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`❌ Lỗi kết nối: ${error.message}`, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                btnText.textContent = 'Upload và Xử Lý';
+            }
+        });
+        
+        function showMessage(text, type) {
+            message.textContent = text;
+            message.className = `message ${type}`;
+            message.style.display = 'block';
+        }
+        
+        // Load stats
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/stats`);
+                const data = await response.json();
+                
+                document.getElementById('tikiCount').textContent = 
+                    data.tiki_products.toLocaleString();
+                document.getElementById('lazadaCount').textContent = 
+                    data.lazada_products.toLocaleString();
+                document.getElementById('shopeeCount').textContent = 
+                    data.shopee_products.toLocaleString();
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+        
+        // Load stats on page load
+        loadStats();
+    </script>
+</body>
+</html>
