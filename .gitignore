@@ -48,9 +48,11 @@ Thumbs.db
 # Node (frontend)
 node_modules/
 
-# Data files from root (managed by crawler)
+# IMPORTANT: Only ignore Tiki data (auto-updated from GitHub)
+# Keep Lazada/Shopee data files (manual upload, no auto-update)
 /tiki_*.xlsx
-/lazada_*.xlsx
-/Shopee*.xlsx
-/*.xlsx
-/*.xls
+/tiki_*.xls
+
+# Allow Lazada/Shopee data
+!lazada_*.xlsx
+!Shopee*.xlsx
