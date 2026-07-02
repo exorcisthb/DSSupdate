@@ -116,8 +116,18 @@ cp .env.example .env
 # Initialize database
 python database/schema.py
 
-# Ingest data
-python ingest.py
+# Ingest data (3 steps)
+# Step 1: Tiki data (auto-fetch from GitHub)
+python ingest.py --source github
+
+# Step 2: Lazada data (from included file)
+python ingest.py --source manual --file lazada_history_20260702_clean.xlsx --platform lazada
+
+# Step 3: Shopee data (from included file)
+python ingest.py --source manual --file "Shopee Data Cleaned From Scraper.xlsx" --platform shopee
+
+# Verify data
+python check_external_data.py
 ```
 
 ### 3. Frontend Setup
@@ -245,6 +255,82 @@ api/app.py (REST API)
     ↓
 React Dashboard (UI)
 ```
+
+---
+
+## 📂 Data Management Strategy
+
+### 🔄 Tiki Data (AUTO-UPDATED)
+- **Source**: GitHub repository (auto-fetched daily)
+- **Files excluded from git**: `tiki_*.xlsx`
+- **Why**: These files update daily from GitHub, no need to store in git
+- **Setup**: 
+  ```bash
+  python ingest.py --source github
+  ```
+- **Files**:
+  - `tiki_raw_data.xlsx` (auto-fetched)
+  - `tiki_clean_data.xlsx` (auto-fetched)
+  - `tiki_historical_data.xlsx` (auto-fetched)
+  - `tiki_changes_report.xlsx` (auto-fetched)
+
+### 📦 External Data (MANUAL UPLOAD - INCLUDED IN GIT)
+- **Source**: Manual uploads (cannot auto-fetch)
+- **Files included in git**:
+  - ✅ `lazada_history_20260702_clean.xlsx` (1,000 products)
+  - ✅ `Shopee Data Cleaned From Scraper.xlsx` (98 products)
+- **Why in git**: 
+  - No auto-update mechanism available
+  - Required for fresh clone/setup
+  - Historical reference
+- **Setup**: Already included, automatic on clone
+- **To update**: 
+  ```bash
+  # 1. Get new Lazada/Shopee data file
+  # 2. Ingest to database
+  python ingest.py --source manual --file new_lazada_data.xlsx --platform lazada
+  
+  # 3. Export from database back to Excel
+  python export_external_data.py
+  
+  # 4. Commit new files
+  git add lazada_*.xlsx Shopee*.xlsx
+  git commit -m "Update external data"
+  git push
+  ```
+
+### 🗄️ Database File
+- **File**: `dss_data.db` (SQLite)
+- **Status**: Excluded from git (`.gitignore`)
+- **Why**: 
+  - Large file (grows over time)
+  - Can be rebuilt from Excel files
+  - Each developer has their own local copy
+- **Rebuild**:
+  ```bash
+  # Delete old database
+  rm dss_data.db  # Linux/Mac
+  del dss_data.db  # Windows
+  
+  # Initialize and ingest
+  python database/schema.py
+  python ingest.py --source github
+  python ingest.py --source manual --file lazada_history_20260702_clean.xlsx --platform lazada
+  python ingest.py --source manual --file "Shopee Data Cleaned From Scraper.xlsx" --platform shopee
+  ```
+
+### 🔧 Utility Scripts
+- **check_external_data.py**: View external data in database
+- **export_external_data.py**: Export DB → Excel (for git commit)
+
+### 📊 Summary
+
+| Data Type | Auto-Update | In Git | Source |
+|-----------|-------------|--------|--------|
+| Tiki | ✅ Yes (GitHub) | ❌ No | Auto-fetch |
+| Lazada | ❌ No | ✅ Yes | Manual upload |
+| Shopee | ❌ No | ✅ Yes | Manual upload |
+| Database | - | ❌ No | Built from files |
 
 ---
 
