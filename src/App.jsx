@@ -1157,7 +1157,6 @@ export default function App() {
                       <th className="py-4 px-4 text-center">Rating</th>
                       <th className="py-4 px-4 text-right">Revenue tiềm năng</th>
                       <th className="py-4 px-5">Mức độ ưu tiên</th>
-                      <th className="py-4 px-4">Lý do</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-emerald-100 text-xs font-medium">
@@ -1202,32 +1201,11 @@ export default function App() {
                           <td className="py-3 px-5">
                             {renderPriorityBadge(item.priority_score, item.priority_level)}
                           </td>
-                          {/* Reason column */}
-                          <td className="py-3 px-4 max-w-[220px]">
-                            <div className="group relative">
-                              <span className="text-[10px] text-gray-500 cursor-help border-b border-dashed border-gray-300">
-                                {item.portfolio_action}
-                              </span>
-                              <div className="absolute left-0 bottom-full z-20 mb-2 hidden group-hover:block w-72 p-3 bg-slate-900 text-white text-[10px] rounded-xl shadow-xl border border-slate-700 leading-relaxed">
-                                <div className="font-bold text-emerald-400 mb-1 text-[11px] uppercase tracking-wider">Chi tiết điểm số</div>
-                                <div className="space-y-1">
-                                  <div className="flex justify-between"><span>Doanh thu/SKU:</span><span className="font-mono">{item.score_breakdown?.rev_sku_contrib || 0}/40</span></div>
-                                  <div className="flex justify-between"><span>Thị phần:</span><span className="font-mono">{item.score_breakdown?.sold_share_contrib || 0}/30</span></div>
-                                  <div className="flex justify-between"><span>Khoảng trống Official:</span><span className="font-mono">{item.score_breakdown?.dom_gap_contrib || 0}/30</span></div>
-                                  <div className="flex justify-between border-t border-slate-600 pt-1 mt-1 font-bold text-teal-400"><span>Tổng gốc:</span><span className="font-mono">{item.score_breakdown?.raw_total || 0}/100</span></div>
-                                </div>
-                                <div className="mt-2 pt-2 border-t border-slate-700 text-[9px] text-gray-400">
-                                  Portfolio: <span className="text-white">{item.portfolio_action}</span> — {item.portfolio_reason}
-                                </div>
-                                <div className="absolute w-3 h-3 bg-slate-900 rotate-45 left-3 -bottom-1.5 border-r border-b border-slate-700" />
-                              </div>
-                            </div>
-                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="8" className="py-12 text-center text-gray-500">
+                        <td colSpan="7" className="py-12 text-center text-gray-500">
                           <AlertCircle className="w-8 h-8 mx-auto text-gray-400 mb-2" />
                           Không tìm thấy dữ liệu nào thỏa mãn các bộ lọc thiết lập.
                         </td>
@@ -1420,86 +1398,46 @@ export default function App() {
                 </div>
               </div>
 
-            {/* PRIORITY CLASSIFICATION TABLE */}
-            <div className="glass-panel rounded-2xl border border-emerald-200 shadow-xl overflow-hidden bg-white mt-6">
+            {/* PRIORITY LEVEL SUMMARY */}
+            <div className="glass-panel rounded-2xl border border-emerald-200 shadow-xl bg-white mt-6">
               <div className="px-5 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
                 <h3 className="text-sm font-bold flex items-center gap-2">
-                  <Award className="w-5 h-5" /> Bảng phân loại mức độ ưu tiên — ASG2 Q4
+                  <Award className="w-5 h-5" /> Phân loại mức độ ưu tiên
                 </h3>
                 <p className="text-[10px] text-emerald-100 mt-0.5">
-                  Phân loại dựa trên Portfolio Matrix: Invest → Cao, Watch → Trung bình, Divest → Thấp
+                  Dựa trên Portfolio Matrix ASG2 Q4 — điểm số được điều chỉnh từ Opportunity Score gốc
                 </p>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-emerald-200 bg-emerald-50 text-[10px] uppercase font-bold tracking-wider text-gray-700 font-mono">
-                      <th className="py-3 px-5">Ngành hàng (L2)</th>
-                      <th className="py-3 px-4 text-right">SKU Tiki</th>
-                      <th className="py-3 px-4 text-center">Rev/SKU (tr)</th>
-                      <th className="py-3 px-4 text-center">Độc quyền (%)</th>
-                      <th className="py-3 px-4 text-center">Điểm gốc</th>
-                      <th className="py-3 px-4 text-center">Portfolio</th>
-                      <th className="py-3 px-5 text-center">Mức ưu tiên</th>
-                      <th className="py-3 px-4">Cơ sở phân loại</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-emerald-100 text-xs font-medium">
-                    {filteredGaps.map((item, idx) => {
-                      const levelColors = {
-                        'Cao': 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
-                        'Trung bình': 'bg-yellow-100 text-yellow-800 border-yellow-300 font-semibold',
-                        'Thấp': 'bg-red-100 text-red-800 border-red-300',
-                      };
-                      const actionColors = {
-                        'Invest': 'text-emerald-600 font-bold',
-                        'Watch': 'text-amber-600 font-semibold',
-                        'Divest': 'text-red-600',
-                      };
-                      return (
-                        <tr key={idx} className="hover:bg-gray-50/50 transition">
-                          <td className="py-2.5 px-5">
-                            <span className="font-semibold text-gray-800">{item.category_l2}</span>
-                            <span className="text-[9px] text-gray-400 ml-2">{item.category_l1}</span>
-                          </td>
-                          <td className="py-2.5 px-4 text-right font-mono text-gray-700">{formatNumber(item.tiki_sku)}</td>
-                          <td className="py-2.5 px-4 text-center font-mono text-gray-700">
-                            {item.tiki_sku > 0 ? (item.tiki_revenue / item.tiki_sku / 1_000_000).toFixed(1) : '0'}
-                          </td>
-                          <td className="py-2.5 px-4 text-center font-mono text-gray-700">{item.official_dom_ratio}%</td>
-                          <td className="py-2.5 px-4 text-center font-mono text-gray-500">{item.score_breakdown?.raw_total || item.opportunity_score}</td>
-                          <td className={`py-2.5 px-4 text-center text-xs ${actionColors[item.portfolio_action] || 'text-gray-500'}`}>
-                            {item.portfolio_action}
-                          </td>
-                          <td className="py-2.5 px-5 text-center">
-                            <span className={`inline-block px-2.5 py-1 rounded text-xs border ${levelColors[item.priority_level] || levelColors['Thấp']}`}>
-                              {item.priority_level}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-4 text-[10px] text-gray-600 leading-tight max-w-[200px]">
-                            <div className="group relative">
-                              <span className="cursor-help border-b border-dashed border-gray-300">{item.portfolio_reason?.slice(0, 45)}...</span>
-                              <div className="absolute left-0 bottom-full z-20 mb-2 hidden group-hover:block w-64 p-3 bg-slate-900 text-white text-[10px] rounded-xl shadow-xl border border-slate-700 leading-relaxed">
-                                <div className="font-bold text-emerald-400 mb-1">Chi tiết</div>
-                                {item.portfolio_reason}
-                                <div className="mt-2 pt-2 border-t border-slate-700 text-[9px] text-gray-400">
-                                  Điểm gốc: {item.score_breakdown?.raw_total || item.opportunity_score} | RevSKU: {item.score_breakdown?.rev_sku_contrib || 0}/40 | Thị phần: {item.score_breakdown?.sold_share_contrib || 0}/30 | Dom: {item.score_breakdown?.dom_gap_contrib || 0}/30
-                                </div>
-                                <div className="absolute w-3 h-3 bg-slate-900 rotate-45 left-3 -bottom-1.5 border-r border-b border-slate-700" />
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-3 divide-x divide-emerald-200">
+                <div className="p-5 text-center">
+                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-emerald-100 border-2 border-emerald-400 text-emerald-700 font-bold text-sm mb-2">C</div>
+                  <h4 className="text-sm font-bold text-emerald-700">Cao</h4>
+                  <p className="text-[10px] text-gray-500 mt-1.5 leading-relaxed">
+                    Invest — Nên đầu tư nhập ngay<br />
+                    <span className="text-emerald-600 font-semibold">Điểm ≥ 80</span>
+                  </p>
+                </div>
+                <div className="p-5 text-center">
+                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-yellow-100 border-2 border-yellow-400 text-yellow-700 font-bold text-sm mb-2">TB</div>
+                  <h4 className="text-sm font-bold text-yellow-700">Trung bình</h4>
+                  <p className="text-[10px] text-gray-500 mt-1.5 leading-relaxed">
+                    Watch — Theo dõi & nhập thử<br />
+                    <span className="text-yellow-600 font-semibold">Điểm 50–79</span>
+                  </p>
+                </div>
+                <div className="p-5 text-center">
+                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-red-100 border-2 border-red-400 text-red-700 font-bold text-sm mb-2">T</div>
+                  <h4 className="text-sm font-bold text-red-700">Thấp</h4>
+                  <p className="text-[10px] text-gray-500 mt-1.5 leading-relaxed">
+                    Divest — Tránh / Né<br />
+                    <span className="text-red-600 font-semibold">Điểm &lt; 50</span>
+                  </p>
+                </div>
               </div>
-              <div className="bg-gray-50 px-5 py-3 border-t border-emerald-200 flex items-center gap-4 text-[10px] text-gray-500">
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300"></span> Cao (Invest)</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-100 border border-yellow-300"></span> Trung bình (Watch)</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-300"></span> Thấp (Divest)</span>
-                <span className="ml-auto italic">Phân loại dựa trên Portfolio Matrix ASG2 Q4 — Điều chỉnh từ điểm gốc Opportunity Score</span>
+              <div className="px-5 py-2.5 bg-emerald-50 border-t border-emerald-200 text-center">
+                <span className="text-[10px] text-gray-600 font-mono">
+                  Công thức: <strong>Score</strong> = <span className="text-emerald-700">0.4 × (Rev/SKU ÷ 100tr)</span> + <span className="text-amber-700">0.3 × (Sold ÷ Tổng Sold)</span> + <span className="text-blue-700">0.3 × (1 − OfficialDom)</span>
+                </span>
               </div>
             </div>
 
