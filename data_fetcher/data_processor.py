@@ -73,7 +73,9 @@ class DataProcessor:
                     review_count=int(row.get('review_count', 0)),
                     discount_rate=float(row.get('discount_rate', 0)),
                     url=str(row.get('url', '')),
-                    thumbnail=str(row.get('thumbnail', ''))
+                    thumbnail=str(row.get('thumbnail', '')),
+                    is_authentic=bool(row.get('is_authentic', False)),
+                    delivery_estimate_days=float(row.get('delivery_estimate_days', 3.0))
                 )
                 self.db.add(product)
                 records_added += 1
@@ -124,6 +126,8 @@ class DataProcessor:
                     discount_rate=float(row.get('discount_rate', 0)),
                     url=str(row.get('url', '')),
                     thumbnail=str(row.get('thumbnail', '')),
+                    is_authentic=bool(row.get('is_authentic', False)),
+                    delivery_estimate_days=float(row.get('delivery_estimate_days', 3.0)),
                     date_collected=date_collected
                 )
                 self.db.add(history)
@@ -187,39 +191,40 @@ class DataProcessor:
         
         for _, row in df.iterrows():
             try:
-                # Map columns based on platform
-                if platform == "Lazada":
+                # Getters with fallbacks
+                ext_id = str(row.get('external_id') or row.get('ID') or row.get('id') or '')
+                prod_name = str(row.get('product_name') or row.get('Tên sản phẩm') or row.get('title') or '')
+                cat_l1 = str(row.get('category_l1', ''))
+                cat_l2 = str(row.get('category_l2', ''))
+                price = float(row.get('price') or row.get('Giá (VND)') or row.get('final_price') or 0.0)
+                sold_count = int(row.get('sold_count') or row.get('Số lượng đã bán') or row.get('sold') or 0)
+                rating = float(row.get('rating') or row.get('Điểm đánh giá') or 0.0)
+                reviews = int(row.get('review_count') or row.get('Tổng lượt đánh giá') or row.get('reviews') or 0)
+                discount = float(row.get('discount_rate') or row.get('Phần trăm giảm') or 0.0)
+                origin = str(row.get('origin') or row.get('Xuất xứ') or '')
+                url = str(row.get('url') or row.get('Link') or '')
+                thumbnail = str(row.get('thumbnail') or row.get('Thumbnail') or row.get('image_url') or '')
+                
+                is_auth = bool(row.get('is_authentic', False)) or any(kw in prod_name.lower() for kw in ['chính hãng', 'official', 'mall'])
+                del_days = float(row.get('delivery_estimate_days') or (2.2 if is_auth else 3.5))
+
+                if platform in ["Lazada", "Shopee"]:
                     product = ProductExternal(
                         platform=platform,
-                        external_id=str(row.get('ID', '')),
-                        product_name=str(row.get('Tên sản phẩm', '')),
-                        category_l1=str(row.get('category_l1', '')),
-                        category_l2=str(row.get('category_l2', '')),
-                        price=float(row.get('Giá (VND)', 0)),
-                        sold_count=int(row.get('Số lượng đã bán', 0)),
-                        rating=float(row.get('Điểm đánh giá', 0)),
-                        review_count=int(row.get('Tổng lượt đánh giá', 0)),
-                        discount_rate=float(row.get('Phần trăm giảm', 0)),
-                        origin=str(row.get('Xuất xứ', '')),
-                        url=str(row.get('Link', '')),
-                        thumbnail=str(row.get('Thumbnail', '')),
-                        date_collected=date_collected
-                    )
-                elif platform == "Shopee":
-                    product = ProductExternal(
-                        platform=platform,
-                        external_id=str(row.get('id', '')),
-                        product_name=str(row.get('title', '')),
-                        category_l1=str(row.get('category_l1', '')),
-                        category_l2=str(row.get('category_l2', '')),
-                        price=float(row.get('final_price', 0)),
-                        sold_count=int(row.get('sold', 0)),
-                        rating=float(row.get('rating', 0)),
-                        review_count=int(row.get('reviews', 0)),
-                        discount_rate=0.0,  # Calculate if needed
-                        origin="",
-                        url=str(row.get('url', '')),
-                        thumbnail=str(row.get('image_url', '')),
+                        external_id=ext_id,
+                        product_name=prod_name,
+                        category_l1=cat_l1,
+                        category_l2=cat_l2,
+                        price=price,
+                        sold_count=sold_count,
+                        rating=rating,
+                        review_count=reviews,
+                        discount_rate=discount,
+                        origin=origin,
+                        url=url,
+                        thumbnail=thumbnail,
+                        is_authentic=is_auth,
+                        delivery_estimate_days=del_days,
                         date_collected=date_collected
                     )
                 else:

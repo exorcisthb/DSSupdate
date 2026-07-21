@@ -41,6 +41,7 @@ REQUIRED_COLUMNS = [
     "estimated_revenue", "is_official_store",
     "is_freeship", "order_route", "origin",
     "is_imported", "is_authentic", "is_top_brand",
+    "delivery_estimate_days",
     "date_collected"
 ]
 

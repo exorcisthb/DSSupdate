@@ -421,26 +421,28 @@ export default function App() {
             </div>
           </div>
 
-          {/* Card 4: Potential Gaps */}
-          <div className="glass-panel p-5 rounded-2xl border border-red-100 relative overflow-hidden group hover:border-red-200 transition-all duration-300 hover:shadow-lg">
+          {/* Card 4: Invest Categories — ASG2 Q4 */}
+          <div className="glass-panel p-5 rounded-2xl border border-emerald-100 relative overflow-hidden group hover:border-emerald-300 transition-all duration-300 hover:shadow-lg">
             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform duration-300">
-              <AlertCircle className="w-24 h-24 text-red-400" />
+              <CheckCircle2 className="w-24 h-24 text-emerald-500" />
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-gray-600 text-xs font-semibold uppercase tracking-wider">Cơ hội GAP phát hiện được</span>
-              <div className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center text-red-600 border border-red-200">
-                <AlertCircle className="w-4 h-4" />
+              <span className="text-gray-600 text-xs font-semibold uppercase tracking-wider">Ngành hàng nên đầu tư</span>
+              <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 border border-emerald-200">
+                <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-4 flex items-baseline gap-2">
               <span className="text-2xl font-bold tracking-tight font-mono text-gray-900 tabular-nums">
-                {dynamicGapsCount}
+                {dashboardData.portfolio_matrix
+                  ? dashboardData.portfolio_matrix.filter(p => p.action === 'Invest').length
+                  : 3}
               </span>
-              <span className="text-gray-500 text-xs font-mono">ngách lớn</span>
+              <span className="text-gray-500 text-xs font-mono">ngành INVEST</span>
             </div>
-            <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              Có điểm ưu tiên cao &gt; 40
+            <div className="mt-2 text-xs text-emerald-600 flex items-center gap-1 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              Underwear · Shorts · Swimwear
             </div>
           </div>
 
@@ -572,9 +574,9 @@ export default function App() {
             minRating={minRating}
           />
         ) : activeTab === 'gaps' ? (
-          /* TAB 1: GAP OPPORTUNITY MATRIX */
+          /* TAB 2: GAP & OPPORTUNITY ANALYSIS — ASG2 Q1 + Q4 */
           <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
+
             {/* MAIN DATA TABLE */}
             <div className="lg:col-span-2 glass-panel rounded-2xl border border-emerald-200 shadow-xl overflow-hidden flex flex-col justify-between bg-white">
               
@@ -648,14 +650,49 @@ export default function App() {
               </div>
               
               <div className="bg-emerald-50 px-5 py-4 border-t border-emerald-200 flex justify-between items-center text-xs text-gray-600 font-mono">
-                <span>Hiển thị {filteredGaps.length} trên tổng số {dashboardData.gap_opportunity.length} ngách thời trang</span>
-                <span>Sort mặc định: Priority Score giảm dần</span>
+                <span>Hiển thị {filteredGaps.length}/{dashboardData.gap_opportunity.length} ngách — sắp xếp theo Opportunity Score (ASG2 Q1)</span>
+                <span className="text-teal-600 font-semibold">Score = 0.4×RevSKU + 0.3×SoldShare + 0.3×(1−OfficialDom)</span>
               </div>
 
             </div>
 
-            {/* SIDEBAR CHARTS */}
+            {/* SIDEBAR: Portfolio Matrix + Charts */}
             <div className="space-y-6 flex flex-col">
+
+              {/* ASG2 Q4 PORTFOLIO MATRIX */}
+              {dashboardData.portfolio_matrix && (
+                <div className="glass-panel rounded-2xl border border-emerald-200 shadow-xl bg-white overflow-hidden">
+                  <div className="px-5 py-3 border-b border-emerald-100 bg-emerald-50 flex items-center justify-between">
+                    <h3 className="text-xs font-bold font-mono uppercase text-gray-700">Portfolio Matrix — ASG2 Q4</h3>
+                    <span className="text-[10px] text-gray-500 italic">Divest / Watch / Invest</span>
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {dashboardData.portfolio_matrix.map((item, idx) => {
+                      const actionConfig = {
+                        Invest: { bg: 'bg-emerald-50', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+                        Watch:  { bg: 'bg-yellow-50',  text: 'text-yellow-700',  badge: 'bg-yellow-100 text-yellow-700 border-yellow-200',  dot: 'bg-yellow-500' },
+                        Divest: { bg: 'bg-red-50',     text: 'text-red-700',     badge: 'bg-red-100 text-red-700 border-red-200',           dot: 'bg-red-500'   },
+                      };
+                      const cfg = actionConfig[item.action] || actionConfig.Watch;
+                      return (
+                        <div key={idx} className={`px-4 py-2.5 flex items-center justify-between gap-3 ${cfg.bg}`}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
+                            <div>
+                              <div className="text-xs font-semibold text-gray-800">{item.category}</div>
+                              <div className="text-[10px] text-gray-500 truncate max-w-[130px]" title={item.reason}>{item.reason.slice(0, 50)}…</div>
+                            </div>
+                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border flex-shrink-0 ${cfg.badge}`}>
+                            {item.action}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               
               {/* MARKET SHARE CHART */}
               <div className="glass-panel p-5 rounded-2xl border border-emerald-200 shadow-xl flex-grow flex flex-col justify-between bg-white">
@@ -797,14 +834,52 @@ export default function App() {
 
           </section>
         ) : (
-          /* TAB 2: COMPETITOR RECOMMENDATION PRODUCT GRID */
+          /* TAB 3: COMPETITOR RECOMMENDATIONS — ASG2 Q3 Thresholds */
           <section className="space-y-6">
+
+            {/* ASG2 Q3 THRESHOLD BANNER */}
+            <div className="rounded-2xl border-2 border-teal-300 bg-gradient-to-r from-teal-50 to-emerald-50 p-5 shadow-md">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-teal-500 flex items-center justify-center flex-shrink-0">
+                  <Award className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-teal-800 font-mono">Ngưỡng thắng cuộc — Regular Seller vs Official Store (ASG2 Q3)</h3>
+                  <p className="text-xs text-teal-700 mt-0.5">Từ mô hình Logistic — đây là tiêu chí tối thiểu để regular seller cạnh tranh thành công với Official Store trên Tiki</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="bg-white rounded-xl p-3 border border-teal-200 shadow-sm">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-teal-600 mb-1">Chiết khấu giá</div>
+                  <div className="text-xl font-bold font-mono text-gray-900">≥ 15.2%</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5">So với Official Store</div>
+                </div>
+                <div className="bg-white rounded-xl p-3 border border-teal-200 shadow-sm">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-teal-600 mb-1">Rating tối thiểu</div>
+                  <div className="text-xl font-bold font-mono text-gray-900">≥ 4.3 ★</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5">Điểm đánh giá trung bình</div>
+                </div>
+                <div className="bg-white rounded-xl p-3 border border-teal-200 shadow-sm">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-teal-600 mb-1">Lượt review</div>
+                  <div className="text-xl font-bold font-mono text-gray-900">≥ 14</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5">Social proof tối thiểu</div>
+                </div>
+                <div className="bg-white rounded-xl p-3 border border-teal-200 shadow-sm">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-teal-600 mb-1">Thời gian giao hàng</div>
+                  <div className="text-xl font-bold font-mono text-gray-900">≤ 2.6 ngày</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5">Dùng Tiki Fulfillment/FBT</div>
+                </div>
+              </div>
+              <div className="mt-3 text-[10px] text-teal-600 italic flex items-center gap-1.5">
+                <Info className="w-3 h-3" /> Nguồn: Mô hình Logistic Regression (ASG2 Q3) — trên 1,925 sản phẩm Tiki Fashion thực tế
+              </div>
+            </div>
             
-            {/* Top row settings */}
+            {/* Platform filter */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-amber-50 p-4 rounded-xl border border-amber-200">
               <div className="text-xs text-gray-700">
-                <strong className="text-amber-700 font-bold">[EXTERNAL - ĐỐI THỦ]</strong> Sản phẩm của Lazada & Shopee để tham khảo so sánh.
-                <br />Seller nên focus vào <strong className="text-emerald-700">Tab "Top Tiki Products"</strong> để chọn sản phẩm bán.
+                <strong className="text-amber-700 font-bold">[EXTERNAL — ĐỐI THỦ]</strong> Sản phẩm Lazada &amp; Shopee để tham khảo so sánh với các ngưỡng trên.
+                <br />Hãy kiểm tra xem sản phẩm đối thủ có đáp ứng <strong className="text-teal-700">đủ 4 ngưỡng ASG2 Q3</strong> hay không trước khi quyết định cạnh tranh.
               </div>
               
               {/* Platform Switcher */}
@@ -941,15 +1016,18 @@ export default function App() {
               <Info className="w-3.5 h-3.5 text-orange-500" /> VỀ DỮ LIỆU ĐỐI THỦ (LAZADA, SHOPEE)
             </h5>
             <p className="leading-relaxed">
-              Các cột lượng bán (<span className="text-slate-400">Sold Lazada+Shopee</span>) của đối thủ được suy luận khoa học bằng thuật toán dựa trên tỷ lệ quy đổi số lượng bán thực tế trên số lượt đánh giá của Tiki. Nghiên cứu thực tế chỉ ra hệ số bán/review trung bình của ngành hàng thời trang là <strong className="text-slate-400">5.24</strong> (1 review tương ứng 5.24 lượt mua).
+              Các cột lượng bán (<span className="text-slate-400">Sold Lazada+Shopee</span>) của đối thủ được suy luận bằng thuật toán dựa trên tỷ lệ quy đổi bán/review của ngành thời trang.
+              Hệ số bán/review trung bình: <strong className="text-slate-400">5.24</strong> (1 review ≈ 5.24 lượt mua).
             </p>
           </div>
           <div>
             <h5 className="font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center gap-1.5 text-xs mb-2">
-              <TrendingUp className="w-3.5 h-3.5 text-orange-500" /> PHƯƠNG PHÁP TÍNH ĐIỂM ƯU TIÊN (PRIORITY SCORE)
+              <TrendingUp className="w-3.5 h-3.5 text-orange-500" /> OPPORTUNITY SCORE (ASG2 Q1)
             </h5>
             <p className="leading-relaxed">
-              <strong className="text-slate-400">Priority Score = Demand (40%) + Supply Gap (40%) + Rating (20%)</strong>. Điểm số đề xuất các sản phẩm có dung lượng thị trường đối thủ lớn, mức độ hài lòng cao nhưng nguồn cung hoặc sản lượng Tiki hiện tại còn thấp, tạo thành một <span className="text-orange-500 font-semibold">Khoảng trống thị trường (Product Gap)</span> tiềm năng để nhập hàng.
+              <strong className="text-slate-400">Score = 0.4 × (RevSKU_norm) + 0.3 × SoldShare + 0.3 × (1 − OfficialDomRatio)</strong>.
+              Điểm cao = doanh thu/SKU lớn, thị phần bán nhiều nhưng tỷ lệ thống trị của Official Store thấp.
+              <br />Điểm ≥ 40 = <span className="text-orange-500 font-semibold">Cơ hội tốt</span> để regular seller gia nhập.
             </p>
           </div>
         </div>
