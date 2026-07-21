@@ -4,6 +4,7 @@ import {
   Legend, ResponsiveContainer, Area, AreaChart, ReferenceLine
 } from 'recharts';
 import { TrendingUp, AlertCircle, Info, Zap, Star } from 'lucide-react';
+import RegressionPredictor from './RegressionPredictor';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
 
@@ -186,6 +187,9 @@ export default function ForecastTab() {
           </p>
         </div>
       </div>
+
+      {/* ASG2 Q2 Interactive Predictor */}
+      <RegressionPredictor model={m} />
 
       {/* Category selector */}
       <div className="flex gap-2 flex-wrap">

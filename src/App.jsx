@@ -5,12 +5,14 @@ import {
 } from 'recharts';
 import { 
   TrendingUp, ShoppingBag, AlertCircle, Filter, Search, ExternalLink, 
-  Star, Percent, Award, Info, Calendar, DollarSign, Layers, CheckCircle2, XCircle, Zap, Activity, Database, Sparkles, X
+  Star, Percent, Award, Info, Calendar, DollarSign, Layers, CheckCircle2, XCircle, Zap, Activity, Database, Sparkles, X, Target
 } from 'lucide-react';
 import ForecastTab from './ForecastTab';
 import WhatIfTab from './WhatIfTab';
 import ProductDataTab from './ProductDataTab';
 import TopTikiProducts from './TopTikiProducts';
+import ThresholdCheckPanel from './ThresholdCheckPanel';
+import StrategyDashboard from './StrategyDashboard';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -977,6 +979,33 @@ export default function App() {
 
         </section>
 
+        {/* 5 ASG2 Questions Navigation Hub */}
+        <section className="grid grid-cols-5 gap-2 px-2 pt-2">
+          {[
+            { q: 'Q1', label: 'Cơ hội & Rào cản', desc: 'Rev/SKU, thị phần, Official dom', tab: 'gaps', color: 'emerald' },
+            { q: 'Q2', label: 'Tối ưu giá bán', desc: 'Giá × Chính hãng × Giao hàng → Doanh số', tab: 'forecast', color: 'teal' },
+            { q: 'Q3', label: 'Ngưỡng thắng Regular', desc: 'Giá -15.2%, Rating≥4.3, Review≥14, Giao≤2.6 ngày', tab: 'recommendations', color: 'cyan' },
+            { q: 'Q4', label: 'Cắt giảm / Theo dõi', desc: 'Portfolio Matrix: Divest-Watch-Invest', tab: 'gaps', color: 'rose' },
+            { q: 'Q5', label: 'Tái cân bằng vốn', desc: 'What-If: -20% ngân sách, +30%, phí sàn', tab: 'whatif', color: 'violet' },
+          ].map((item, i) => {
+            const colors = {
+              emerald: 'border-emerald-200 hover:bg-emerald-50 text-emerald-700',
+              teal: 'border-teal-200 hover:bg-teal-50 text-teal-700',
+              cyan: 'border-cyan-200 hover:bg-cyan-50 text-cyan-700',
+              rose: 'border-rose-200 hover:bg-rose-50 text-rose-700',
+              violet: 'border-violet-200 hover:bg-violet-50 text-violet-700',
+            };
+            return (
+              <button key={i} onClick={() => setActiveTab(item.tab)}
+                className={`text-left p-2.5 rounded-xl border bg-white ${colors[item.color]} transition-all shadow-sm hover:shadow`}>
+                <div className="text-[9px] font-bold font-mono opacity-60">{item.q}</div>
+                <div className="text-[11px] font-bold leading-tight mt-0.5">{item.label}</div>
+                <div className="text-[8px] opacity-70 mt-0.5 leading-tight line-clamp-2">{item.desc}</div>
+              </button>
+            );
+          })}
+        </section>
+
         {/* TABS NAVIGATION */}
         <section className="flex overflow-x-auto border-b border-emerald-100 bg-white/50">
           <button
@@ -1029,6 +1058,16 @@ export default function App() {
           >
             <Zap className="w-4 h-4" /> What-If Scenarios
           </button>
+          <button
+            onClick={() => setActiveTab('strategy')}
+            className={`px-6 py-3 font-mono text-xs uppercase tracking-wider font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'strategy'
+                ? 'border-indigo-500 text-indigo-700 bg-indigo-50'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-white/80'
+            }`}
+          >
+            <Target className="w-4 h-4" /> Chiến lược
+          </button>
           
           {/* Divider */}
           <div className="w-px bg-emerald-200 mx-2 my-2"></div>
@@ -1078,6 +1117,8 @@ export default function App() {
           <ForecastTab />
         ) : activeTab === 'whatif' ? (
           <WhatIfTab />
+        ) : activeTab === 'strategy' ? (
+          <StrategyDashboard />
         ) : activeTab === 'tiki-data' ? (
           <ProductDataTab 
             platform="Tiki" 
@@ -1194,6 +1235,8 @@ export default function App() {
                       <th className="py-4 px-4 text-center">Rating</th>
                       <th className="py-4 px-4 text-right">Revenue tiềm năng</th>
                       <th className="py-4 px-5">Mức độ ưu tiên</th>
+                      <th className="py-4 px-4 text-center">Portfolio</th>
+                      <th className="py-4 px-4 text-center">Chênh Rating</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-emerald-100 text-xs font-medium">
@@ -1238,11 +1281,30 @@ export default function App() {
                           <td className="py-3 px-5">
                             {renderPriorityBadge(item.priority_score, item.priority_level)}
                           </td>
+                          {/* Portfolio Action */}
+                          <td className="py-3 px-4 text-center">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                              item.portfolio_action === 'Invest' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                              item.portfolio_action === 'Watch' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                              item.portfolio_action === 'Divest' ? 'bg-red-100 text-red-700 border-red-200' :
+                              'bg-gray-100 text-gray-600 border-gray-200'
+                            }`}>
+                              {item.portfolio_action}
+                            </span>
+                          </td>
+                          {/* Rating Gap */}
+                          <td className="py-3 px-4 text-center">
+                            <span className={`font-mono text-xs font-bold ${
+                              (item.rating_gap || 0) >= 0 ? 'text-emerald-600' : 'text-red-500'
+                            }`}>
+                              {(item.rating_gap || 0) >= 0 ? '+' : ''}{item.rating_gap || 0}
+                            </span>
+                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="7" className="py-12 text-center text-gray-500">
+                        <td colSpan="9" className="py-12 text-center text-gray-500">
                           <AlertCircle className="w-8 h-8 mx-auto text-gray-400 mb-2" />
                           Không tìm thấy dữ liệu nào thỏa mãn các bộ lọc thiết lập.
                         </td>
@@ -1487,7 +1549,10 @@ export default function App() {
                 <Info className="w-3 h-3" /> Nguồn: Mô hình Logistic Regression (ASG2 Q3) — trên 1,925 sản phẩm Tiki Fashion thực tế
               </div>
             </div>
-            
+
+            {/* Q3 Threshold Checking Summary (fetched from API) */}
+            <ThresholdCheckPanel category={selectedL2 !== 'All' ? selectedL2 : null} />
+
             {/* Platform filter */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-amber-50 p-4 rounded-xl border border-amber-200">
               <div className="text-xs text-gray-700">

@@ -75,20 +75,8 @@ class DashboardGenerator:
         Also annotates ASG2 Q4 Portfolio Matrix action (Divest / Watch / Invest).
         """
 
-        # ── ASG2 Q4 Portfolio Matrix (hardcoded from report analysis) ──────────
-        PORTFOLIO_ACTIONS = {
-            # Divest: doanh số thấp, không có rating, dưới vốn
-            "Áo hoodie nam":       {"action": "Divest", "reason": "Bán <10 sản phẩm, Rev/SKU <100K, không có rating — thanh lý, không tái nhập"},
-            "Bộ trang phục nam":   {"action": "Divest", "reason": "0 lượt bán, không có traction — thoát vị trí ngay"},
-            "Áo nữ":               {"action": "Divest", "reason": "0 lượt bán, ngoài core category nam — thoát ngay"},
-            # Watch / Hold
-            "Áo thun nam":         {"action": "Watch", "reason": "SKU lớn (440+) nhưng rating TB 1.70 — tạm dừng SKU mới, kiểm tra chất lượng"},
-            "Áo sơ mi nam":        {"action": "Watch", "reason": "Rating thấp — kiểm tra chất lượng, mục tiêu rating 4.0+ trước khi mở rộng"},
-            # Invest / Expand
-            "Đồ lót nam":          {"action": "Invest", "reason": "Tổng bán >23K, ROI 2.10×, rating ổn định — phân bổ 90% vốn"},
-            "Quần short nam":      {"action": "Invest", "reason": "Tổng bán >28K, ROI 1.95× — dùng bundle pricing để tối đa doanh số"},
-            "Đồ bơi - Đồ đi biển nam": {"action": "Invest", "reason": "Rào cản thấp (28.6% official dom), Opportunity Score 47.1 — vào ngay"},
-        }
+        # ── ASG2 Q4 Portfolio Matrix (computed dynamically from data) ──────────
+        PORTFOLIO_ACTIONS = {}
 
         # Get all unique category_l2 from Tiki
         categories_query = self.db.query(
@@ -102,6 +90,18 @@ class DashboardGenerator:
         total_tiki_sold = self.db.query(
             func.sum(ProductTiki.sold_count)
         ).scalar() or 1
+
+        # First pass: compute max_rev_per_sku for proper normalization (Q1 ASG2 spec)
+        max_rev_per_sku = 100_000_000  # fallback default
+        for cat_l1, cat_l2 in categories_query:
+            tiki_products = self.db.query(ProductTiki).filter(
+                ProductTiki.category_l2 == cat_l2
+            ).all()
+            tiki_revenue = sum(p.estimated_revenue for p in tiki_products)
+            tiki_sku = len(tiki_products)
+            rev_per_sku = (tiki_revenue / tiki_sku) if tiki_sku > 0 else 0
+            if rev_per_sku > max_rev_per_sku:
+                max_rev_per_sku = rev_per_sku
 
         for cat_l1, cat_l2 in categories_query:
             if not cat_l2:
@@ -157,8 +157,8 @@ class DashboardGenerator:
             # Score = 0.4 * (RevSKU_norm) + 0.3 * SoldShare + 0.3 * (1 - OfficialDomRatio)
             rev_per_sku = (tiki_revenue / tiki_sku) if tiki_sku > 0 else 0
             sold_share = (tiki_sold / total_tiki_sold) if total_tiki_sold > 0 else 0
-            # Normalise RevSKU by dividing by 100M reference (top category)
-            rev_sku_norm = min(1.0, rev_per_sku / 100_000_000)
+            # Normalise RevSKU by dividing by max across categories (ASG2 Q1 spec)
+            rev_sku_norm = min(1.0, rev_per_sku / max_rev_per_sku) if max_rev_per_sku > 0 else 0
 
             opportunity_score = (
                 0.4 * rev_sku_norm
@@ -198,8 +198,23 @@ class DashboardGenerator:
                 # Conservative 20% growth potential if no SKU gap
                 revenue_potential = (tiki_sold * 0.2) * comp_avg_price if comp_avg_price > 0 else 0
 
-            # Portfolio action from Q4
-            portfolio = PORTFOLIO_ACTIONS.get(cat_l2, {"action": "Monitor", "reason": "Insufficient data for classification"})
+            # Dynamic Portfolio Matrix action (ASG2 Q4)
+            # Criteria: Rev/SKU, Total Sold, Avg Rating, Official Domination
+            rating_gap = tiki_rating_avg - (comp_rating_avg if comp_rating_avg > 0 else 3.5)
+            if tiki_sold > 10000 and rev_per_sku > 20000000 and tiki_rating_avg >= 4.0:
+                portfolio_action = "Invest"
+                portfolio_reason = f"Tổng bán {tiki_sold:,} đơn, Rev/SKU {rev_per_sku/1e6:.1f}tr, rating {tiki_rating_avg:.1f}★ — thị trường lớn, chất lượng ổn"
+            elif tiki_sold > 1000 and tiki_rating_avg >= 3.5:
+                portfolio_action = "Watch"
+                portfolio_reason = f"Bán {tiki_sold:,} đơn, rating {tiki_rating_avg:.1f}★, Rev/SKU {rev_per_sku/1e6:.1f}tr — cần theo dõi thêm"
+            elif tiki_sold <= 100 or rev_per_sku < 5000000:
+                portfolio_action = "Divest"
+                portfolio_reason = f"Bán chỉ {tiki_sold:,} đơn, Rev/SKU {rev_per_sku/1e6:.1f}tr — nên thoát hoặc tái cấu trúc"
+            else:
+                portfolio_action = "Monitor"
+                portfolio_reason = f"Bán {tiki_sold:,} đơn, Rev/SKU {rev_per_sku/1e6:.1f}tr, rating {tiki_rating_avg:.1f}★"
+
+            portfolio = {"action": portfolio_action, "reason": portfolio_reason}
 
             # Override priority score to align with Portfolio Matrix action
             raw_opportunity_score = round(opportunity_score, 1)
@@ -213,7 +228,7 @@ class DashboardGenerator:
                 priority_level = "Thấp"
                 adjusted_score = min(19.9, raw_opportunity_score)
             else:
-                priority_level = "Thấp"
+                priority_level = "Theo dõi"
                 adjusted_score = raw_opportunity_score
 
             score_breakdown = {
@@ -242,6 +257,8 @@ class DashboardGenerator:
                 "priority_level": priority_level,
                 "portfolio_action": portfolio["action"],
                 "portfolio_reason": portfolio["reason"],
+                "rating_gap": round(tiki_rating_avg - (comp_rating_avg if comp_rating_avg > 0 else 3.5), 1),
+                "rev_per_sku": int(rev_per_sku),
                 "priority_reason": priority_reason,
                 "score_breakdown": score_breakdown,
             })
@@ -678,6 +695,144 @@ class DashboardGenerator:
                 "3. Mục tiêu Seeding: Gom đủ 14 reviews đầu tiên trong 14 ngày đầu ra mắt."
             ]
         }
+
+    def generate_category_insights(self):
+        """
+        Phân tích tăng trưởng, rủi ro, và lợi nhuận cho mỗi ngành hàng L2.
+        Dữ liệu có sẵn: 5 ngày lịch sử, rating, delivery, discount, is_authentic.
+        Growth = daily sold trend từ history table.
+        Risk = proxy từ rating thấp + delivery chậm + official domination.
+        Profit proxy = rev_per_sku * (1 - discount_rate).
+        """
+        from sqlalchemy import text as sql_text
+
+        categories_query = self.db.query(
+            ProductTiki.category_l1,
+            ProductTiki.category_l2
+        ).distinct().all()
+
+        insights = []
+        total_tiki_sold = self.db.query(func.sum(ProductTiki.sold_count)).scalar() or 1
+
+        # Pre-compute max rev_per_sku for normalization
+        max_rev_per_sku = 100_000_000
+        for cat_l1, cat_l2 in categories_query:
+            prods = self.db.query(ProductTiki).filter(ProductTiki.category_l2 == cat_l2).all()
+            rev = sum(p.estimated_revenue for p in prods)
+            sku = len(prods)
+            rps = rev / sku if sku > 0 else 0
+            if rps > max_rev_per_sku:
+                max_rev_per_sku = rps
+
+        for cat_l1, cat_l2 in categories_query:
+            if not cat_l2:
+                continue
+
+            prods = self.db.query(ProductTiki).filter(ProductTiki.category_l2 == cat_l2).all()
+            tiki_sold = sum(p.sold_count for p in prods)
+            tiki_revenue = sum(p.estimated_revenue for p in prods)
+            tiki_sku = len(prods)
+            rev_per_sku = tiki_revenue / tiki_sku if tiki_sku > 0 else 0
+
+            authentic_sold = sum(p.sold_count for p in prods if p.is_authentic)
+            official_dom = (authentic_sold / tiki_sold) if tiki_sold > 0 else 0
+
+            avg_rating = sum(p.rating * p.sold_count for p in prods if p.sold_count > 0)
+            avg_rating = avg_rating / tiki_sold if tiki_sold > 0 else (
+                sum(p.rating for p in prods if p.rating > 0) / max(sum(1 for p in prods if p.rating > 0), 1)
+            )
+            avg_delivery = sum(p.delivery_estimate_days or 3.0 for p in prods) / max(tiki_sku, 1)
+            avg_discount = sum(p.discount_rate or 0 for p in prods) / max(tiki_sku, 1)
+
+            # ── Growth: 5-day sold trend from history ──
+            growth_rate = 0.0
+            growth_label = "Không đủ dữ liệu"
+            raw_dates = self.db.execute(
+                sql_text("SELECT DISTINCT date(date_collected) FROM products_tiki_history WHERE category_l2 = :cat ORDER BY date(date_collected)"),
+                {"cat": cat_l2}
+            ).fetchall()
+            dates = sorted([row[0] for row in raw_dates])
+            if len(dates) >= 2:
+                sold_by_date = []
+                for d in dates:
+                    s = self.db.execute(
+                        sql_text("SELECT COALESCE(SUM(sold_count), 0) FROM products_tiki_history WHERE category_l2 = :cat AND date(date_collected) = :d"),
+                        {"cat": cat_l2, "d": d}
+                    ).scalar() or 0
+                    sold_by_date.append((d, s))
+                first_sold = sold_by_date[0][1]
+                last_sold = sold_by_date[-1][1]
+                if first_sold > 0:
+                    days = max(len(dates) - 1, 1)
+                    growth_rate = ((last_sold / first_sold) ** (1.0 / days) - 1) * 100
+                if growth_rate > 5:
+                    growth_label = "Tăng trưởng nóng"
+                elif growth_rate > 1:
+                    growth_label = "Tăng trưởng ổn định"
+                elif growth_rate > -1:
+                    growth_label = "Đi ngang"
+                else:
+                    growth_label = "Suy giảm"
+
+            # ── Risk Score: proxy từ rating + delivery + official dom + discount ──
+            rating_risk = max(0, (5.0 - avg_rating) / 5.0 * 40)
+            delivery_risk = min(30, (avg_delivery / 7.0) * 30)
+            dom_risk = official_dom * 20
+            discount_risk = min(10, (avg_discount / 50.0) * 10)
+            risk_score = round(rating_risk + delivery_risk + dom_risk + discount_risk, 1)
+
+            if risk_score >= 60:
+                risk_level = "Cao"
+            elif risk_score >= 35:
+                risk_level = "Trung bình"
+            else:
+                risk_level = "Thấp"
+
+            # ── Profit proxy: rev_per_sku * (1 - discount_rate) ──
+            profit_proxy = rev_per_sku * (1 - avg_discount / 100.0) if avg_discount < 100 else 0
+
+            # ── Decision recommendation ──
+            if growth_rate > 3 and risk_score < 40:
+                decision = "ĐẦU TƯ MẠNH"
+                decision_icon = "🟢"
+                decision_detail = "Tăng trưởng cao + rủi ro thấp — ưu tiên phân bổ vốn"
+            elif growth_rate > 3 and risk_score >= 40:
+                decision = "ĐẦU TƯ CÓ KIỂM SOÁT"
+                decision_icon = "🟡"
+                decision_detail = "Tăng trưởng nóng nhưng rủi ro cao — cần giảm thiểu rủi ro trước"
+            elif growth_rate > 0 and risk_score < 40:
+                decision = "DUY TRÌ"
+                decision_icon = "🔵"
+                decision_detail = "Tăng trưởng ổn định, rủi ro thấp — duy trì hiện tại"
+            elif growth_rate > 0:
+                decision = "THEO DÕI"
+                decision_icon = "🟤"
+                decision_detail = "Tăng trưởng yếu, rủi ro TB — cần thêm dữ liệu"
+            else:
+                decision = "THOÁT / TÁI CẤU TRÚC"
+                decision_icon = "🔴"
+                decision_detail = "Suy giảm hoặc rủi ro cao — cân nhắc thoát hàng"
+
+            insights.append({
+                "category_l1": cat_l1,
+                "category_l2": cat_l2,
+                "tiki_sold": int(tiki_sold),
+                "rev_per_sku": int(rev_per_sku),
+                "profit_proxy": int(profit_proxy),
+                "avg_rating": round(avg_rating, 2),
+                "avg_delivery_days": round(avg_delivery, 1),
+                "avg_discount_pct": round(avg_discount, 1),
+                "official_dom_pct": round(official_dom * 100, 1),
+                "growth_rate_pct": round(growth_rate, 2),
+                "growth_label": growth_label,
+                "risk_score": risk_score,
+                "risk_level": risk_level,
+                "decision": decision,
+                "decision_detail": decision_detail,
+            })
+
+        insights.sort(key=lambda x: x["growth_rate_pct"], reverse=True)
+        return insights
 
     def generate_all(self):
         """Generate all dashboard data."""

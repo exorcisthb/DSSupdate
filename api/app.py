@@ -317,6 +317,93 @@ def get_forecast():
         }), 500
 
 
+@app.route('/api/regression/insights', methods=['GET'])
+def get_regression_insights():
+    """Q2: Regression model insights — predict sold from price, authentic, delivery."""
+    try:
+        category = request.args.get('category')
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from regression_model import get_category_regression_insights, get_all_categories_optimal_price
+        if category:
+            data = get_category_regression_insights(category)
+        else:
+            data = get_category_regression_insights()
+        optimal = get_all_categories_optimal_price()
+        return jsonify({"product_predictions": data[:50], "optimal_prices": optimal})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/threshold/check', methods=['GET'])
+def check_thresholds():
+    """Q3: Check which competitor products meet the 4 success thresholds."""
+    try:
+        category = request.args.get('category')
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from database.schema import ProductExternal, SessionLocal
+
+        THRESHOLD_PRICE_DISCOUNT = 15.2
+        THRESHOLD_RATING = 4.3
+        THRESHOLD_REVIEWS = 14
+        THRESHOLD_DELIVERY = 2.6
+
+        db = SessionLocal()
+        query = db.query(ProductExternal)
+        if category:
+            query = query.filter(ProductExternal.category_l2 == category)
+        products = query.all()
+
+        results = []
+        for p in products:
+            price_discount = p.discount_rate or 0
+            passes_price = price_discount >= THRESHOLD_PRICE_DISCOUNT
+            passes_rating = (p.rating or 0) >= THRESHOLD_RATING
+            passes_reviews = (p.review_count or 0) >= THRESHOLD_REVIEWS
+            passes_delivery = (p.delivery_estimate_days or 10) <= THRESHOLD_DELIVERY
+            passes_count = sum([passes_price, passes_rating, passes_reviews, passes_delivery])
+            results.append({
+                "id": p.id,
+                "product_name": p.product_name,
+                "category_l2": p.category_l2,
+                "platform": p.source,
+                "price": p.price,
+                "discount_rate": price_discount,
+                "rating": p.rating,
+                "review_count": p.review_count,
+                "delivery_estimate_days": p.delivery_estimate_days,
+                "is_authentic": p.is_authentic,
+                "thresholds": {
+                    "price_discount_15.2": passes_price,
+                    "rating_4.3": passes_rating,
+                    "reviews_14": passes_reviews,
+                    "delivery_2.6": passes_delivery,
+                    "pass_count": passes_count,
+                    "pass_rate": f"{passes_count}/4",
+                },
+                "meets_all": passes_count == 4,
+                "meets_most": passes_count >= 3,
+            })
+        db.close()
+        return jsonify({
+            "thresholds": {
+                "price_discount_pct": THRESHOLD_PRICE_DISCOUNT,
+                "min_rating": THRESHOLD_RATING,
+                "min_reviews": THRESHOLD_REVIEWS,
+                "max_delivery_days": THRESHOLD_DELIVERY,
+            },
+            "total_products": len(results),
+            "pass_all_count": sum(1 for r in results if r["meets_all"]),
+            "pass_most_count": sum(1 for r in results if r["meets_most"]),
+            "products": results,
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/whatif', methods=['GET'])
 def get_whatif_scenarios():
     """
@@ -593,6 +680,21 @@ def get_external_products():
         return jsonify({
             'error': f'Error fetching external products: {str(e)}'
         }), 500
+
+
+@app.route('/api/category/insights', methods=['GET'])
+def get_category_insights():
+    """Phân tích tăng trưởng, rủi ro, lợi nhuận cho mỗi L2 category."""
+    try:
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from dashboard_generator import DashboardGenerator
+        gen = DashboardGenerator()
+        data = gen.generate_category_insights()
+        return jsonify(data)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
