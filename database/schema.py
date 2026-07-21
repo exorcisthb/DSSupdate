@@ -198,7 +198,10 @@ class IngestLog(Base):
 def init_database():
     """Initialize database tables."""
     Base.metadata.create_all(bind=engine)
-    print("✅ Database tables initialized successfully!")
+    try:
+        print("Database tables initialized successfully!")
+    except UnicodeEncodeError:
+        print("[OK] Database tables initialized successfully!")
 
 
 def get_db():

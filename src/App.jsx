@@ -13,7 +13,7 @@ import ProductDataTab from './ProductDataTab';
 import TopTikiProducts from './TopTikiProducts';
 
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 // Utility helper to format currency
 const formatCurrency = (val) => {
@@ -84,6 +84,19 @@ function DecisionAssistantModal({ isOpen, onClose }) {
   const [evalData, setEvalData] = useState(null);
   const [loadingEval, setLoadingEval] = useState(false);
   const [evalError, setEvalError] = useState(null);
+
+  const [showCompare, setShowCompare] = useState(false);
+  const [sortCompareBy, setSortCompareBy] = useState('sold_count');
+
+  const sortedCompareProducts = useMemo(() => {
+    if (!evalData?.top_products) return [];
+    const sorted = [...evalData.top_products].sort((a, b) => {
+      if (sortCompareBy === 'price') return b.current_price - a.current_price;
+      if (sortCompareBy === 'rating') return b.rating - a.rating;
+      return b.sold_count - a.sold_count;
+    });
+    return sorted;
+  }, [evalData, sortCompareBy]);
 
   const categories = [
     'Đồ lót nam', 'Quần short nam', 'Đồ bơi - Đồ đi biển nam', 
@@ -359,6 +372,119 @@ function DecisionAssistantModal({ isOpen, onClose }) {
                     ))}
                   </div>
                 </div>
+
+                {/* COMPARE BUTTON */}
+                {evalData.top_products && evalData.top_products.length > 1 && (
+                  <div className="flex justify-center">
+                    <button
+                      onClick={() => setShowCompare(!showCompare)}
+                      className={`px-5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+                        showCompare
+                          ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-md shadow-emerald-600/30'
+                      }`}
+                    >
+                      {showCompare ? <X className="w-4 h-4" /> : <Activity className="w-4 h-4" />}
+                      {showCompare ? 'Đóng so sánh' : '🔍 So sánh với sản phẩm khác'}
+                    </button>
+                  </div>
+                )}
+
+                {/* COMPARISON TABLE */}
+                {showCompare && evalData.top_products && (
+                  <div className="border border-emerald-200 rounded-xl overflow-hidden bg-white">
+                    <div className="bg-emerald-50 px-4 py-2.5 border-b border-emerald-200 flex items-center justify-between">
+                      <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                        📊 Bảng so sánh sản phẩm trong ngách
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-gray-500">Sắp xếp:</span>
+                        {['sold_count', 'price', 'rating'].map((key) => (
+                          <button
+                            key={key}
+                            onClick={() => setSortCompareBy(key)}
+                            className={`px-2 py-1 rounded text-[10px] font-bold transition ${
+                              sortCompareBy === key
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-white text-gray-600 border border-gray-200 hover:border-emerald-300'
+                            }`}
+                          >
+                            {key === 'sold_count' ? 'Bán chạy' : key === 'price' ? 'Giá' : 'Đánh giá'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="p-2.5 text-left font-bold text-gray-600 uppercase tracking-wider">#</th>
+                            <th className="p-2.5 text-left font-bold text-gray-600 uppercase tracking-wider">Sản phẩm</th>
+                            <th className="p-2.5 text-right font-bold text-gray-600 uppercase tracking-wider">Giá</th>
+                            <th className="p-2.5 text-right font-bold text-gray-600 uppercase tracking-wider">Đã bán</th>
+                            <th className="p-2.5 text-right font-bold text-gray-600 uppercase tracking-wider">Đánh giá</th>
+                            <th className="p-2.5 text-right font-bold text-gray-600 uppercase tracking-wider">Review</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedCompareProducts.map((prod, idx) => {
+                            const isBest = prod.product_id === evalData.best_product.product_id;
+                            return (
+                              <tr
+                                key={prod.product_id || idx}
+                                className={`border-t border-gray-100 hover:bg-emerald-50/50 transition ${
+                                  isBest ? 'bg-emerald-50/80' : ''
+                                }`}
+                              >
+                                <td className="p-2.5">
+                                  {isBest ? (
+                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-600 text-white text-[10px] font-bold">#1</span>
+                                  ) : (
+                                    <span className="text-gray-400 font-mono">{idx + 1}</span>
+                                  )}
+                                </td>
+                                <td className="p-2.5">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0 bg-gradient-to-br from-teal-600 to-emerald-800 flex items-center justify-center text-white relative">
+                                    <img
+                                      src={prod.thumbnail}
+                                      alt=""
+                                      className="w-full h-full object-cover absolute inset-0"
+                                      onError={(e) => { e.target.style.display = 'none'; }}
+                                    />
+                                    <ShoppingBag className="w-4 h-4 opacity-60" />
+                                  </div>
+                                    <span className={`text-[11px] line-clamp-1 ${isBest ? 'font-bold text-emerald-800' : 'text-gray-700'}`}>
+                                      {prod.product_name}
+                                      {isBest && <span className="ml-1.5 text-[10px] text-emerald-600 font-bold">(Top 1)</span>}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-2.5 text-right font-mono font-bold text-gray-800">
+                                  {formatCurrency(prod.current_price)}
+                                </td>
+                                <td className="p-2.5 text-right font-mono text-gray-700">
+                                  {formatNumber(prod.sold_count)}
+                                </td>
+                                <td className="p-2.5 text-right">
+                                  <span className={`font-mono font-bold ${prod.rating >= 4.5 ? 'text-emerald-600' : prod.rating >= 3.5 ? 'text-amber-600' : 'text-red-500'}`}>
+                                    {prod.rating.toFixed(1)}★
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-right font-mono text-gray-700">
+                                  {formatNumber(prod.review_count)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="px-4 py-2 bg-gray-50 text-[10px] text-gray-500 italic border-t border-gray-100">
+                      * So sánh nhanh sản phẩm Top 1 (được đề xuất) với các sản phẩm khác trong cùng ngách.
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}

@@ -618,6 +618,19 @@ class DashboardGenerator:
                 "review_count": best_prod.review_count if best_prod else 150,
                 "url": best_prod.url if best_prod else ""
             },
+            "top_products": [
+                {
+                    "product_id": p.product_id,
+                    "product_name": p.product_name or "",
+                    "thumbnail": p.thumbnail or "",
+                    "current_price": p.price or 0,
+                    "sold_count": p.sold_count or 0,
+                    "rating": p.rating or 0,
+                    "review_count": p.review_count or 0,
+                    "url": p.url or ""
+                }
+                for p in tiki_prods[:10]
+            ],
             "action_plan": [
                 f"1. Định giá sản phẩm: Đặt giá bán ~{target_price:,} đ (Rẻ hơn chính hãng 15.2%).",
                 "2. Đạt chuẩn chất lượng: Đảm bảo Rating ≥ 4.3★ và Giao hàng nhanh ≤ 2.6 ngày.",
