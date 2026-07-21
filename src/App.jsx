@@ -79,8 +79,8 @@ function ProductCardImage({ src, name, category, discount, platform }) {
 }
 
 // ── Decision Assistant Modal Component ──────────────────────────────────────
-function DecisionAssistantModal({ isOpen, onClose }) {
-  const [selectedCategory, setSelectedCategory] = useState('Đồ lót nam');
+function DecisionAssistantModal({ isOpen, onClose, allCategories = [] }) {
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [evalData, setEvalData] = useState(null);
   const [loadingEval, setLoadingEval] = useState(false);
   const [evalError, setEvalError] = useState(null);
@@ -88,6 +88,17 @@ function DecisionAssistantModal({ isOpen, onClose }) {
   const [showCompare, setShowCompare] = useState(false);
   const [sortCompareBy, setSortCompareBy] = useState('sold_count');
   const [sortAsc, setSortAsc] = useState(false);
+
+  const categories = allCategories.length > 0 ? allCategories : [
+    'Đồ lót nam', 'Quần short nam', 'Đồ bơi - Đồ đi biển nam', 
+    'Áo thun nam', 'Áo sơ mi nam', 'Phụ kiện thời trang', 'Giày - Dép nam'
+  ];
+
+  useEffect(() => {
+    if (categories.length > 0 && !selectedCategory) {
+      setSelectedCategory(categories[0]);
+    }
+  }, [categories]);
 
   const handleSort = (key) => {
     if (sortCompareBy === key) {
@@ -110,11 +121,6 @@ function DecisionAssistantModal({ isOpen, onClose }) {
     return sorted;
   }, [evalData, sortCompareBy, sortAsc]);
 
-  const categories = [
-    'Đồ lót nam', 'Quần short nam', 'Đồ bơi - Đồ đi biển nam', 
-    'Áo thun nam', 'Áo sơ mi nam', 'Phụ kiện thời trang', 'Giày - Dép nam'
-  ];
-
   const handleEvaluate = async (category) => {
     const catToUse = category || selectedCategory;
     try {
@@ -132,10 +138,10 @@ function DecisionAssistantModal({ isOpen, onClose }) {
   };
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && selectedCategory) {
       handleEvaluate(selectedCategory);
     }
-  }, [isOpen]);
+  }, [isOpen, selectedCategory]);
 
   if (!isOpen) return null;
 
@@ -176,24 +182,18 @@ function DecisionAssistantModal({ isOpen, onClose }) {
             <label className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
               <Filter className="w-3.5 h-3.5 text-emerald-600" /> Chọn Ngành Hàng Muốn Ra Quyết Định:
             </label>
-            <div className="flex flex-wrap gap-2">
+            <select
+              value={selectedCategory}
+              onChange={(e) => {
+                setSelectedCategory(e.target.value);
+                handleEvaluate(e.target.value);
+              }}
+              className="w-full max-w-md px-3 py-2 rounded-xl text-xs font-medium border border-emerald-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            >
               {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => {
-                    setSelectedCategory(cat);
-                    handleEvaluate(cat);
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
-                    selectedCategory === cat
-                      ? 'bg-emerald-600 text-white font-bold shadow-md shadow-emerald-600/30 scale-105'
-                      : 'bg-white text-gray-700 hover:bg-emerald-100 border border-emerald-200'
-                  }`}
-                >
-                  {cat}
-                </button>
+                <option key={cat} value={cat}>{cat}</option>
               ))}
-            </div>
+            </select>
           </div>
 
           <button
@@ -534,6 +534,7 @@ export default function App() {
 
   // 1. States for filtering and search
   const [selectedL1, setSelectedL1] = useState('All');
+  const [selectedL2, setSelectedL2] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [priceRange, setPriceRange] = useState(1500000); // Max price filter
   const [minRating, setMinRating] = useState(0); // Min rating filter
@@ -582,19 +583,38 @@ export default function App() {
     return ['All', ...Array.from(cats)];
   }, [dashboardData]);
 
+  // Extract unique L2 categories for filtering
+  const l2Categories = useMemo(() => {
+    if (!dashboardData) return ['All'];
+    const cats = new Set(dashboardData.gap_opportunity.map(item => item.category_l2));
+    return ['All', ...Array.from(cats).sort()];
+  }, [dashboardData]);
+
   // 2. Filtered Gap Opportunities
   const filteredGaps = useMemo(() => {
     if (!dashboardData) return [];
     return dashboardData.gap_opportunity
       .filter(item => {
         if (selectedL1 !== 'All' && item.category_l1 !== selectedL1) return false;
+        if (selectedL2 !== 'All' && item.category_l2 !== selectedL2) return false;
         if (searchQuery && !item.category_l2.toLowerCase().includes(searchQuery.toLowerCase()) && !item.category_l1.toLowerCase().includes(searchQuery.toLowerCase())) return false;
         if (item.competitor_avg_price > priceRange) return false;
         if (item.competitor_rating < minRating) return false;
         return true;
       })
       .sort((a, b) => b.priority_score - a.priority_score);
-  }, [dashboardData, selectedL1, searchQuery, priceRange, minRating]);
+  }, [dashboardData, selectedL1, selectedL2, searchQuery, priceRange, minRating]);
+
+  // Filtered L2 options based on selected L1
+  const filteredL2Options = useMemo(() => {
+    if (!dashboardData) return ['All'];
+    const cats = new Set(
+      dashboardData.gap_opportunity
+        .filter(item => selectedL1 === 'All' || item.category_l1 === selectedL1)
+        .map(item => item.category_l2)
+    );
+    return ['All', ...Array.from(cats).sort()];
+  }, [dashboardData, selectedL1]);
 
   // Dynamic Gaps Count based on filtered items
   const dynamicGapsCount = useMemo(() => {
@@ -605,9 +625,8 @@ export default function App() {
   const filteredRecommendations = useMemo(() => {
     if (!dashboardData) return [];
     return dashboardData.competitor_recommendations.filter(item => {
-      // L1 filter
       if (selectedL1 !== 'All' && item.category_l1 !== selectedL1) return false;
-      // Search filter
+      if (selectedL2 !== 'All' && item.category_l2 !== selectedL2) return false;
       if (searchQuery && !item.name.toLowerCase().includes(searchQuery.toLowerCase()) && !item.category_l2.toLowerCase().includes(searchQuery.toLowerCase())) return false;
       // Platform filter
       if (!selectedPlatforms[item.platform]) return false;
@@ -766,23 +785,39 @@ export default function App() {
           {/* Category Filter */}
           <div className="flex flex-col gap-2 flex-grow">
             <label className="text-xs font-semibold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5 text-emerald-500" /> Ngành hàng lớn (Category L1)
+              <Filter className="w-3.5 h-3.5 text-emerald-500" /> Ngành hàng lớn (L1)
             </label>
             <div className="flex flex-wrap gap-1.5">
               {l1Categories.map(cat => (
                 <button
                   key={cat}
-                  onClick={() => setSelectedL1(cat)}
+                  onClick={() => { setSelectedL1(cat); setSelectedL2('All'); }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     selectedL1 === cat
                       ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30 font-semibold'
                       : 'bg-white hover:bg-emerald-50 text-gray-700 border border-emerald-100'
                   }`}
                 >
-                  {cat === 'All' ? 'Tất cả ngành hàng' : cat}
+                  {cat === 'All' ? 'Tất cả' : cat}
                 </button>
               ))}
             </div>
+            {l2Categories.length > 1 && (
+              <div className="mt-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1 block">
+                  Ngách hàng (L2)
+                </label>
+                <select
+                  value={selectedL2}
+                  onChange={(e) => setSelectedL2(e.target.value)}
+                  className="w-full max-w-xs px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                >
+                  {filteredL2Options.map(cat => (
+                    <option key={cat} value={cat}>{cat === 'All' ? 'Tất cả ngách' : cat}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Sliders and query filter */}
@@ -1596,6 +1631,7 @@ export default function App() {
         <DecisionAssistantModal
           isOpen={isDecisionModalOpen}
           onClose={() => setIsDecisionModalOpen(false)}
+          allCategories={l2Categories.filter(c => c !== 'All')}
         />
 
       </footer>
