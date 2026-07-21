@@ -585,18 +585,15 @@ export default function App() {
   // 2. Filtered Gap Opportunities
   const filteredGaps = useMemo(() => {
     if (!dashboardData) return [];
-    return dashboardData.gap_opportunity.filter(item => {
-      // L1 filter
-      if (selectedL1 !== 'All' && item.category_l1 !== selectedL1) return false;
-      // Search filter
-      if (searchQuery && !item.category_l2.toLowerCase().includes(searchQuery.toLowerCase()) && !item.category_l1.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-      // Price filter (based on competitor average price)
-      if (item.competitor_avg_price > priceRange) return false;
-      // Rating filter
-      if (item.competitor_rating < minRating) return false;
-      
-      return true;
-    });
+    return dashboardData.gap_opportunity
+      .filter(item => {
+        if (selectedL1 !== 'All' && item.category_l1 !== selectedL1) return false;
+        if (searchQuery && !item.category_l2.toLowerCase().includes(searchQuery.toLowerCase()) && !item.category_l1.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+        if (item.competitor_avg_price > priceRange) return false;
+        if (item.competitor_rating < minRating) return false;
+        return true;
+      })
+      .sort((a, b) => b.priority_score - a.priority_score);
   }, [dashboardData, selectedL1, searchQuery, priceRange, minRating]);
 
   // Dynamic Gaps Count based on filtered items
@@ -1111,30 +1108,35 @@ export default function App() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 text-[10px] font-mono">
-                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold border border-emerald-300">Cao (&gt;60)</span>
-                    <span className="px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 font-bold border border-yellow-300">Trung bình (40-60)</span>
-                    <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 font-bold border border-red-300">Thấp (&lt;40)</span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold border border-emerald-300">Cao (&ge;80)</span>
+                    <span className="px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 font-bold border border-yellow-300">Trung bình (50-79)</span>
+                    <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 font-bold border border-red-300">Thấp (&lt;50)</span>
                   </div>
                 </div>
 
-                <div className="h-64 w-full text-xs">
+                <div className="h-80 w-full text-xs">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
-                      data={filteredGaps.slice(0, 8)}
+                      data={filteredGaps.slice(0, 20)}
                       layout="vertical"
                       margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#d1fae5" horizontal={true} vertical={false} />
                       <XAxis type="number" domain={[0, 100]} stroke="#6b7280" fontSize={10} tickFormatter={(v) => `${v}đ`} />
-                      <YAxis dataKey="category_l2" type="category" stroke="#6b7280" width={130} fontSize={10} />
+                      <YAxis dataKey="category_l2" type="category" stroke="#6b7280" width={140} fontSize={9} />
                       <Tooltip
-                        formatter={(value) => [`${value} điểm`, 'Opportunity Score']}
+                        formatter={(value, name, props) => [`${value} điểm`, 'Priority Score']}
+                        labelFormatter={(label, payload) => {
+                          if (!payload || !payload.length) return label;
+                          const item = payload[0].payload;
+                          return `${label} (gốc: ${item.opportunity_score})`;
+                        }}
                         contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #10b981', fontSize: '12px' }}
                       />
-                      <Bar dataKey="opportunity_score" name="Opportunity Score" radius={[0, 4, 4, 0]} barSize={16}>
-                        {filteredGaps.slice(0, 8).map((entry, index) => {
-                          const score = entry.opportunity_score;
-                          const color = score >= 60 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444';
+                      <Bar dataKey="priority_score" name="Priority Score" radius={[0, 4, 4, 0]} barSize={16}>
+                        {filteredGaps.slice(0, 20).map((entry, index) => {
+                          const score = entry.priority_score;
+                          const color = score >= 80 ? '#10b981' : score >= 50 ? '#f59e0b' : '#ef4444';
                           return <Cell key={`cell-${index}`} fill={color} />;
                         })}
                       </Bar>
