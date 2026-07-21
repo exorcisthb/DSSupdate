@@ -87,16 +87,28 @@ function DecisionAssistantModal({ isOpen, onClose }) {
 
   const [showCompare, setShowCompare] = useState(false);
   const [sortCompareBy, setSortCompareBy] = useState('sold_count');
+  const [sortAsc, setSortAsc] = useState(false);
+
+  const handleSort = (key) => {
+    if (sortCompareBy === key) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortCompareBy(key);
+      setSortAsc(false);
+    }
+  };
 
   const sortedCompareProducts = useMemo(() => {
     if (!evalData?.top_products) return [];
     const sorted = [...evalData.top_products].sort((a, b) => {
-      if (sortCompareBy === 'price') return b.current_price - a.current_price;
-      if (sortCompareBy === 'rating') return b.rating - a.rating;
-      return b.sold_count - a.sold_count;
+      let diff;
+      if (sortCompareBy === 'price') diff = a.current_price - b.current_price;
+      else if (sortCompareBy === 'rating') diff = a.rating - b.rating;
+      else diff = a.sold_count - b.sold_count;
+      return sortAsc ? diff : -diff;
     });
     return sorted;
-  }, [evalData, sortCompareBy]);
+  }, [evalData, sortCompareBy, sortAsc]);
 
   const categories = [
     'Đồ lót nam', 'Quần short nam', 'Đồ bơi - Đồ đi biển nam', 
@@ -399,19 +411,23 @@ function DecisionAssistantModal({ isOpen, onClose }) {
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] text-gray-500">Sắp xếp:</span>
-                        {['sold_count', 'price', 'rating'].map((key) => (
-                          <button
-                            key={key}
-                            onClick={() => setSortCompareBy(key)}
-                            className={`px-2 py-1 rounded text-[10px] font-bold transition ${
-                              sortCompareBy === key
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-white text-gray-600 border border-gray-200 hover:border-emerald-300'
-                            }`}
-                          >
-                            {key === 'sold_count' ? 'Bán chạy' : key === 'price' ? 'Giá' : 'Đánh giá'}
-                          </button>
-                        ))}
+                          {['sold_count', 'price', 'rating'].map((key) => {
+                            const isActive = sortCompareBy === key;
+                            return (
+                              <button
+                                key={key}
+                                onClick={() => handleSort(key)}
+                                className={`px-2 py-1 rounded text-[10px] font-bold transition flex items-center gap-1 ${
+                                  isActive
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-white text-gray-600 border border-gray-200 hover:border-emerald-300'
+                                }`}
+                              >
+                                {key === 'sold_count' ? 'Bán chạy' : key === 'price' ? 'Giá' : 'Đánh giá'}
+                                {isActive && (sortAsc ? '↑' : '↓')}
+                              </button>
+                            );
+                          })}
                       </div>
                     </div>
                     <div className="overflow-x-auto">
