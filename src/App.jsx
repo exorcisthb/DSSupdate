@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  LineChart, Line, AreaChart, Area 
+  LineChart, Line, AreaChart, Area, Cell 
 } from 'recharts';
 import { 
   TrendingUp, ShoppingBag, AlertCircle, Filter, Search, ExternalLink, 
@@ -28,8 +28,55 @@ const formatCurrency = (val) => {
 
 // Utility helper to format large numbers
 const formatNumber = (val) => {
+  if (val === null || val === undefined) return '0';
   return new Intl.NumberFormat('vi-VN').format(val);
 };
+
+// Smart image component with fallback card gradient
+function ProductCardImage({ src, name, category, discount, platform }) {
+  const [imgError, setImgError] = useState(false);
+
+  const gradients = {
+    Lazada: 'from-blue-600 to-indigo-800',
+    Shopee: 'from-orange-500 to-amber-700',
+    Tiki: 'from-emerald-600 to-teal-800',
+  };
+  const gradient = gradients[platform] || 'from-teal-600 to-emerald-800';
+
+  return (
+    <div className="h-44 w-full bg-slate-100 flex items-center justify-center relative overflow-hidden group">
+      {!imgError && src && !src.includes('nan') && src.trim().length > 5 ? (
+        <img
+          src={src}
+          alt={name}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className={`w-full h-full bg-gradient-to-br ${gradient} flex flex-col items-center justify-center p-4 text-white text-center shadow-inner`}>
+          <ShoppingBag className="w-10 h-10 mb-2 opacity-80" />
+          <span className="text-[11px] font-bold font-mono uppercase tracking-wider line-clamp-1 opacity-90">{category || 'Thời Trang'}</span>
+          <span className="text-[9px] opacity-75 mt-1 line-clamp-2 px-2 leading-tight">{name}</span>
+        </div>
+      )}
+
+      {platform && (
+        <span className={`absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold border shadow ${
+          platform === 'Lazada' ? 'bg-blue-600 text-white border-blue-500' :
+          platform === 'Shopee' ? 'bg-orange-600 text-white border-orange-500' : 'bg-emerald-600 text-white border-emerald-500'
+        }`}>
+          {platform}
+        </span>
+      )}
+
+      {discount > 0 && (
+        <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-bold font-mono">
+          -{discount}%
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function App() {
   // Loading & Data States
@@ -577,10 +624,58 @@ export default function App() {
           /* TAB 2: GAP & OPPORTUNITY ANALYSIS — ASG2 Q1 + Q4 */
           <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            {/* MAIN DATA TABLE */}
-            <div className="lg:col-span-2 glass-panel rounded-2xl border border-emerald-200 shadow-xl overflow-hidden flex flex-col justify-between bg-white">
-              
-              <div className="overflow-x-auto">
+            {/* MAIN DATA SECTION */}
+            <div className="lg:col-span-2 space-y-6 flex flex-col">
+
+              {/* PRIMARY CHART: Opportunity Score Horizontal Bar Chart (ASG3 Spec) */}
+              <div className="glass-panel p-5 rounded-2xl border border-emerald-200 shadow-xl bg-white">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                  <div>
+                    <h3 className="text-sm font-bold font-mono tracking-wider uppercase text-gray-800 flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-emerald-600" />
+                      Biểu đồ Opportunity Score Ngách Tiềm Năng (ASG2 Q1 Niche Selection)
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Công thức ASG2: Score = 0.4 × Rev/SKU + 0.3 × Sold Share + 0.3 × (1 − Official Domination)
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] font-mono">
+                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold border border-emerald-300">Cao (&gt;60)</span>
+                    <span className="px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 font-bold border border-yellow-300">Trung bình (40-60)</span>
+                    <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 font-bold border border-red-300">Thấp (&lt;40)</span>
+                  </div>
+                </div>
+
+                <div className="h-64 w-full text-xs">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={filteredGaps.slice(0, 8)}
+                      layout="vertical"
+                      margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#d1fae5" horizontal={true} vertical={false} />
+                      <XAxis type="number" domain={[0, 100]} stroke="#6b7280" fontSize={10} tickFormatter={(v) => `${v}đ`} />
+                      <YAxis dataKey="category_l2" type="category" stroke="#6b7280" width={130} fontSize={10} />
+                      <Tooltip
+                        formatter={(value) => [`${value} điểm`, 'Opportunity Score']}
+                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #10b981', fontSize: '12px' }}
+                      />
+                      <Bar dataKey="opportunity_score" name="Opportunity Score" radius={[0, 4, 4, 0]} barSize={16}>
+                        {filteredGaps.slice(0, 8).map((entry, index) => {
+                          const score = entry.opportunity_score;
+                          const color = score >= 60 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444';
+                          return <Cell key={`cell-${index}`} fill={color} />;
+                        })}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* MAIN DATA TABLE */}
+              <div className="glass-panel rounded-2xl border border-emerald-200 shadow-xl overflow-hidden flex flex-col justify-between bg-white">
+                
+                <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-emerald-200 bg-emerald-50 text-[10px] uppercase font-bold tracking-wider text-gray-700 font-mono">
@@ -653,8 +748,8 @@ export default function App() {
                 <span>Hiển thị {filteredGaps.length}/{dashboardData.gap_opportunity.length} ngách — sắp xếp theo Opportunity Score (ASG2 Q1)</span>
                 <span className="text-teal-600 font-semibold">Score = 0.4×RevSKU + 0.3×SoldShare + 0.3×(1−OfficialDom)</span>
               </div>
-
             </div>
+          </div>
 
             {/* SIDEBAR: Portfolio Matrix + Charts */}
             <div className="space-y-6 flex flex-col">
@@ -695,73 +790,74 @@ export default function App() {
 
               
               {/* MARKET SHARE CHART */}
-              <div className="glass-panel p-5 rounded-2xl border border-emerald-200 shadow-xl flex-grow flex flex-col justify-between bg-white">
-                <div>
-                  <h3 className="text-sm font-bold font-mono tracking-wider uppercase text-gray-800">
-                    Phân tích Sản lượng tiêu thụ
-                  </h3>
-                  <p className="text-gray-600 text-xs mt-0.5 mb-4">
-                    Thị phần lượng bán (sold count) 8 ngách hàng lớn nhất
-                  </p>
+              <div className="glass-panel p-3 rounded-2xl border border-emerald-200 shadow-xl bg-white">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h3 className="text-xs font-bold font-mono tracking-wider uppercase text-gray-800">
+                      Phân tích Sản lượng tiêu thụ
+                    </h3>
+                    <p className="text-gray-500 text-[10px] mt-0.5">
+                      Thị phần lượng bán (sold count) 8 ngách hàng lớn nhất
+                    </p>
+                  </div>
                 </div>
                 
-                <div className="h-64 w-full text-xs">
+                <div className="h-44 w-full text-xs">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={marketShareChartData}
                       layout="vertical"
-                      margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+                      margin={{ top: 2, right: 8, left: 4, bottom: 2 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#d1fae5" horizontal={true} vertical={false} />
-                      <XAxis type="number" stroke="#6b7280" fontSize={10} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} />
-                      <YAxis dataKey="category_l2" type="category" stroke="#6b7280" width={90} fontSize={10} />
+                      <XAxis type="number" stroke="#6b7280" fontSize={9} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(0)}k` : val} />
+                      <YAxis dataKey="category_l2" type="category" stroke="#6b7280" width={80} fontSize={9} />
                       <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(209, 250, 229, 0.3)' }} />
                       <Legend 
-                        iconSize={8}
+                        iconSize={7}
                         iconType="circle"
-                        wrapperStyle={{ fontSize: '10px', paddingTop: '10px', borderTop: '1px solid #d1fae5' }}
+                        wrapperStyle={{ fontSize: '9px', paddingTop: '6px', borderTop: '1px solid #d1fae5' }}
                       />
-                      {/* Bar stacks mapping: Tiki (emerald), Lazada (blue), Shopee (orange) */}
                       <Bar dataKey="Tiki" stackId="a" fill="#10b981" name="Tiki (nội bộ)" radius={[0, 0, 0, 0]} />
                       <Bar dataKey="Lazada" stackId="a" fill="#3b82f6" name="Lazada" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="Shopee" stackId="a" fill="#f97316" name="Shopee" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="Shopee" stackId="a" fill="#f97316" name="Shopee" radius={[0, 3, 3, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
                 
-                <div className="mt-4 pt-3 border-t border-emerald-100 text-[10px] text-gray-500 italic">
+                <div className="mt-2 text-[9px] text-gray-400 italic">
                   * Biểu thị sản lượng phân bổ giữa các nền tảng thương mại điện tử
                 </div>
               </div>
 
               {/* TIKI HISTORICAL TRENDS CHART */}
-              <div className="glass-panel p-5 rounded-2xl border border-emerald-200 shadow-xl flex-grow flex flex-col justify-between bg-white">
-                <div className="flex justify-between items-start gap-4 mb-4">
+              <div className="glass-panel p-3 rounded-2xl border border-emerald-200 shadow-xl bg-white">
+                <div className="flex justify-between items-center gap-2 mb-2">
                   <div>
-                    <h3 className="text-sm font-bold font-mono tracking-wider uppercase text-gray-800">
+                    <h3 className="text-xs font-bold font-mono tracking-wider uppercase text-gray-800">
                       Xu hướng tăng trưởng Tiki
                     </h3>
-                    <p className="text-gray-600 text-xs mt-0.5">
-                      Trực quan snapshot lượng bán tích lũy 5 ngày gần nhất
+                    <p className="text-gray-500 text-[10px] mt-0.5">
+                      Snapshot lượng bán 5 ngày gần nhất
                     </p>
                   </div>
-                  <div className="flex bg-emerald-100 p-0.5 rounded-lg border border-emerald-200 text-[10px] font-mono">
+                  <div className="flex bg-emerald-100 p-0.5 rounded-lg border border-emerald-200 text-[10px] font-mono flex-shrink-0">
                     <button 
                       onClick={() => setTrendType('category')}
-                      className={`px-2.5 py-1 rounded-md transition ${trendType === 'category' ? 'bg-emerald-500 text-white font-semibold' : 'text-gray-600 hover:text-gray-800'}`}
+                      className={`px-2 py-0.5 rounded-md transition ${trendType === 'category' ? 'bg-emerald-500 text-white font-semibold' : 'text-gray-600 hover:text-gray-800'}`}
                     >
-                      Ngành hàng L1
+                      Ngành L1
                     </button>
                     <button 
                       onClick={() => setTrendType('product')}
-                      className={`px-2.5 py-1 rounded-md transition ${trendType === 'product' ? 'bg-emerald-500 text-white font-semibold' : 'text-gray-600 hover:text-gray-800'}`}
+                      className={`px-2 py-0.5 rounded-md transition ${trendType === 'product' ? 'bg-emerald-500 text-white font-semibold' : 'text-gray-600 hover:text-gray-800'}`}
                     >
                       Mã Hot
                     </button>
                   </div>
                 </div>
 
-                <div className="h-56 w-full text-xs">
+                <div className="h-40 w-full text-xs">
                   {trendType === 'category' ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart
@@ -915,37 +1011,13 @@ export default function App() {
                   <div key={prod.id} className="glass-panel rounded-xl overflow-hidden border border-emerald-200 hover:border-emerald-300 hover:shadow-xl transition duration-300 flex flex-col justify-between group relative bg-white">
                     
                     {/* Thumbnail representation */}
-                    <div className="h-44 w-full bg-gray-100 flex items-center justify-center relative overflow-hidden">
-                      {prod.thumbnail ? (
-                        <img 
-                          src={prod.thumbnail} 
-                          alt={prod.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          onError={(e) => { e.target.style.display = 'none'; }} // Fallback on error
-                        />
-                      ) : (
-                        <div className="text-gray-400 flex flex-col items-center gap-2">
-                          <ShoppingBag className="w-10 h-10 opacity-30" />
-                          <span className="text-[10px] font-mono">Hình ảnh sản phẩm</span>
-                        </div>
-                      )}
-                      
-                      {/* Platform label overlay */}
-                      <span className={`absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold border shadow-lg ${
-                        prod.platform === 'Lazada' 
-                          ? 'bg-blue-600 text-white border-blue-500' 
-                          : 'bg-orange-600 text-white border-orange-500'
-                      }`}>
-                        {prod.platform}
-                      </span>
-                      
-                      {/* Discount Badge */}
-                      {prod.discount_percent > 0 && (
-                        <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-bold font-mono">
-                          -{prod.discount_percent}%
-                        </span>
-                      )}
-                    </div>
+                    <ProductCardImage
+                      src={prod.thumbnail}
+                      name={prod.name}
+                      category={prod.category_l2}
+                      discount={prod.discount_percent}
+                      platform={prod.platform}
+                    />
                     
                     {/* Product details */}
                     <div className="p-4 flex-grow flex flex-col justify-between gap-3">

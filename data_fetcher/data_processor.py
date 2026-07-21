@@ -54,35 +54,75 @@ class DataProcessor:
     def ingest_tiki_clean(self, df: pd.DataFrame, source_identifier: str) -> int:
         """Ingest Tiki clean data (current snapshot)."""
         print(f"📊 Processing {len(df)} Tiki products...")
-        
+
         # Clear existing data
         self.db.query(ProductTiki).delete()
-        
+
         records_added = 0
         for _, row in df.iterrows():
             try:
+                pid = str(row.get('product_id', '')).strip()
+                if not pid or pid == 'nan':
+                    continue
+
+                # Support both old and new column names from the scraper
+                url = str(row.get('url') or row.get('product_link') or '')
+                # Build thumbnail URL from product_id using Tiki CDN pattern
+                thumbnail = str(row.get('thumbnail') or '')
+                if not thumbnail and pid:
+                    thumbnail = f"https://salt.tikicdn.com/ts/product/{pid[:2]}/{pid[2:4]}/{pid}/{pid}.jpg"
+
+                # Support both discount_rate and discount_percent column names
+                discount = row.get('discount_rate') or row.get('discount_percent') or 0
+                try:
+                    discount_val = float(discount) if not pd.isna(discount) else 0.0
+                except:
+                    discount_val = 0.0
+
+                # Support both is_authentic and is_official_store
+                is_auth = row.get('is_authentic') or row.get('is_official_store') or False
+                try:
+                    is_auth_val = bool(is_auth) if not pd.isna(is_auth) else False
+                except:
+                    is_auth_val = False
+
+                # delivery_estimate_days may not be in new data — default 3.0
+                del_days = row.get('delivery_estimate_days')
+                try:
+                    del_days_val = float(del_days) if del_days is not None and not pd.isna(del_days) else 3.0
+                except:
+                    del_days_val = 3.0
+
+                def safe_float(v, default=0.0):
+                    try: return float(v) if v is not None and not pd.isna(v) else default
+                    except: return default
+
+                def safe_int(v, default=0):
+                    try: return int(float(v)) if v is not None and not pd.isna(v) else default
+                    except: return default
+
                 product = ProductTiki(
-                    product_id=str(row.get('product_id', '')),
+                    product_id=pid,
                     product_name=str(row.get('product_name', '')),
                     category_l1=str(row.get('category_l1', '')),
                     category_l2=str(row.get('category_l2', '')),
-                    price=float(row.get('price', 0)),
-                    sold_count=int(row.get('sold_count', 0)),
-                    estimated_revenue=float(row.get('estimated_revenue', 0)),
-                    rating=float(row.get('rating', 0)),
-                    review_count=int(row.get('review_count', 0)),
-                    discount_rate=float(row.get('discount_rate', 0)),
-                    url=str(row.get('url', '')),
-                    thumbnail=str(row.get('thumbnail', '')),
-                    is_authentic=bool(row.get('is_authentic', False)),
-                    delivery_estimate_days=float(row.get('delivery_estimate_days', 3.0))
+                    price=safe_float(row.get('price')),
+                    sold_count=safe_int(row.get('sold_count')),
+                    estimated_revenue=safe_float(row.get('estimated_revenue')),
+                    rating=safe_float(row.get('rating')),
+                    review_count=safe_int(row.get('review_count')),
+                    discount_rate=discount_val,
+                    url=url,
+                    thumbnail=thumbnail,
+                    is_authentic=is_auth_val,
+                    delivery_estimate_days=del_days_val
                 )
                 self.db.add(product)
                 records_added += 1
             except Exception as e:
                 print(f"⚠️  Error processing product {row.get('product_id')}: {e}")
                 continue
-        
+
         self.db.commit()
         print(f"✅ Ingested {records_added} Tiki products")
         return records_added

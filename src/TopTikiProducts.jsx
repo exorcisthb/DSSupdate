@@ -1,5 +1,44 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, DollarSign, Star, Filter, Search, ExternalLink, Award, Zap } from 'lucide-react';
+import { TrendingUp, DollarSign, Star, Filter, Search, ExternalLink, Award, Zap, ShoppingBag } from 'lucide-react';
+
+function ProductCardImage({ src, name, category, discount }) {
+  const [imgError, setImgError] = useState(false);
+
+  const gradients = [
+    'from-emerald-600 to-teal-800',
+    'from-blue-600 to-indigo-800',
+    'from-purple-600 to-pink-800',
+    'from-amber-600 to-orange-800',
+    'from-cyan-600 to-blue-800',
+  ];
+  const charCode = (category || name || 'T').charCodeAt(0);
+  const gradient = gradients[charCode % gradients.length];
+
+  return (
+    <div className="h-48 w-full bg-slate-100 flex items-center justify-center relative overflow-hidden group">
+      {!imgError && src && !src.includes('nan') && src.trim().length > 5 ? (
+        <img
+          src={src}
+          alt={name}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className={`w-full h-full bg-gradient-to-br ${gradient} flex flex-col items-center justify-center p-4 text-white text-center shadow-inner`}>
+          <ShoppingBag className="w-10 h-10 mb-2 opacity-80" />
+          <span className="text-[11px] font-bold font-mono uppercase tracking-wider line-clamp-1 opacity-90">{category || 'Thời Trang Nam'}</span>
+          <span className="text-[9px] opacity-75 mt-1 line-clamp-2 px-2 leading-tight">{name}</span>
+        </div>
+      )}
+      
+      {discount > 0 && (
+        <span className="absolute bottom-2 right-2 px-2 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded shadow font-mono">
+          -{discount}%
+        </span>
+      )}
+    </div>
+  );
+}
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
 
@@ -242,26 +281,12 @@ export default function TopTikiProducts({ selectedL1, searchQuery: globalSearchQ
             )}
 
             {/* Thumbnail */}
-            <div className="h-48 w-full bg-gray-100 flex items-center justify-center relative overflow-hidden">
-              {product.thumbnail ? (
-                <img
-                  src={product.thumbnail}
-                  alt={product.product_name}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                  }}
-                />
-              ) : (
-                <div className="text-gray-400 text-xs">No image</div>
-              )}
-              
-              {product.discount_rate > 0 && (
-                <span className="absolute bottom-2 right-2 px-2 py-1 bg-red-500 text-white text-[10px] font-bold rounded">
-                  -{product.discount_rate}%
-                </span>
-              )}
-            </div>
+            <ProductCardImage
+              src={product.thumbnail}
+              name={product.product_name}
+              category={product.category_l2}
+              discount={product.discount_rate}
+            />
 
             {/* Product info */}
             <div className="p-4 flex-grow flex flex-col gap-3">
