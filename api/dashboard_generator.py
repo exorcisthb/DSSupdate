@@ -173,6 +173,22 @@ class DashboardGenerator:
                 rating_score = (comp_rating_avg / 5.0) * 20
                 opportunity_score = sku_score + price_score + rating_score
 
+            # Build priority reason explanation
+            rev_per_sku_k = rev_per_sku / 1_000_000
+            comp_info = f"Đối thủ {comp_sku} SKU, giá TB {comp_avg_price:,.0f}đ" if comp_sku > 0 else "Không có đối thủ"
+            if opportunity_score >= 1:
+                priority_reason = (
+                    f"Doanh thu/SKU {rev_per_sku_k:.1f}tr (đóng góp {0.4*rev_sku_norm*100:.1f}/40đ), "
+                    f"Thị phần {sold_share*100:.1f}% ({0.3*sold_share*100:.1f}/30đ), "
+                    f"Hàng chính hãng {official_dom_ratio*100:.0f}% ({0.3*(1-official_dom_ratio)*100:.1f}/30đ). "
+                    f"{comp_info}."
+                )
+            else:
+                priority_reason = (
+                    f"Score cơ bản thấp do doanh thu/SKU chỉ {rev_per_sku_k:.1f}tr. "
+                    f"Fallback đối thủ: {comp_info}. SKU={comp_sku}, giá={comp_avg_price:,.0f}đ."
+                )
+
             # Revenue potential calculation
             sku_gap = max(0, comp_sku - tiki_sku)
             avg_tiki_sold_per_sku = tiki_sold / tiki_sku if tiki_sku > 0 else 100
@@ -203,6 +219,7 @@ class DashboardGenerator:
                 "opportunity_score": round(opportunity_score, 1),  # same, explicit alias
                 "portfolio_action": portfolio["action"],
                 "portfolio_reason": portfolio["reason"],
+                "priority_reason": priority_reason,
             })
 
         # Sort by opportunity_score descending

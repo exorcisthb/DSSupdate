@@ -1165,6 +1165,7 @@ export default function App() {
                       <th className="py-4 px-4 text-center">Rating</th>
                       <th className="py-4 px-4 text-right">Revenue tiềm năng</th>
                       <th className="py-4 px-5">Mức độ ưu tiên</th>
+                      <th className="py-4 px-4">Lý do</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-emerald-100 text-xs font-medium">
@@ -1209,11 +1210,27 @@ export default function App() {
                           <td className="py-3 px-5">
                             {renderPriorityBadge(item.priority_score)}
                           </td>
+                          {/* Reason column */}
+                          <td className="py-3 px-4 max-w-[220px]">
+                            <div className="group relative">
+                              <span className="text-[10px] text-gray-500 cursor-help border-b border-dashed border-gray-300">
+                                {item.priority_score < 20 ? 'Rất thấp' : item.priority_score < 40 ? 'Thấp' : item.priority_score < 60 ? 'TB' : 'Cao'}
+                              </span>
+                              <div className="absolute left-0 bottom-full z-20 mb-2 hidden group-hover:block w-64 p-3 bg-slate-900 text-white text-[10px] rounded-xl shadow-xl border border-slate-700 leading-relaxed">
+                                <div className="font-bold text-emerald-400 mb-1 text-[11px] uppercase tracking-wider">Phân tích điểm số</div>
+                                {item.priority_reason || 'Đang tính toán...'}
+                                <div className="mt-2 pt-2 border-t border-slate-700 text-[9px] text-gray-400">
+                                  Score = 0.4×RevSKU_norm + 0.3×SoldShare + 0.3×(1−OfficialDom)
+                                </div>
+                                <div className="absolute w-3 h-3 bg-slate-900 rotate-45 left-3 -bottom-1.5 border-r border-b border-slate-700" />
+                              </div>
+                            </div>
+                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="7" className="py-12 text-center text-gray-500">
+                        <td colSpan="8" className="py-12 text-center text-gray-500">
                           <AlertCircle className="w-8 h-8 mx-auto text-gray-400 mb-2" />
                           Không tìm thấy dữ liệu nào thỏa mãn các bộ lọc thiết lập.
                         </td>
