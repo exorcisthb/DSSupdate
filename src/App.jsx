@@ -1243,88 +1243,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* PRIORITY CLASSIFICATION TABLE */}
-            <div className="glass-panel rounded-2xl border border-emerald-200 shadow-xl overflow-hidden bg-white">
-              <div className="px-5 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
-                <h3 className="text-sm font-bold flex items-center gap-2">
-                  <Award className="w-5 h-5" /> Bảng phân loại mức độ ưu tiên — ASG2 Q4
-                </h3>
-                <p className="text-[10px] text-emerald-100 mt-0.5">
-                  Phân loại dựa trên Portfolio Matrix: Invest → Cao, Watch → Trung bình, Divest → Thấp
-                </p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-emerald-200 bg-emerald-50 text-[10px] uppercase font-bold tracking-wider text-gray-700 font-mono">
-                      <th className="py-3 px-5">Ngành hàng (L2)</th>
-                      <th className="py-3 px-4 text-right">SKU Tiki</th>
-                      <th className="py-3 px-4 text-center">Rev/SKU (tr)</th>
-                      <th className="py-3 px-4 text-center">Độc quyền (%)</th>
-                      <th className="py-3 px-4 text-center">Điểm gốc</th>
-                      <th className="py-3 px-4 text-center">Portfolio</th>
-                      <th className="py-3 px-5 text-center">Mức ưu tiên</th>
-                      <th className="py-3 px-4">Cơ sở phân loại</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-emerald-100 text-xs font-medium">
-                    {filteredGaps.map((item, idx) => {
-                      const levelColors = {
-                        'Cao': 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
-                        'Trung bình': 'bg-yellow-100 text-yellow-800 border-yellow-300 font-semibold',
-                        'Thấp': 'bg-red-100 text-red-800 border-red-300',
-                      };
-                      const actionColors = {
-                        'Invest': 'text-emerald-600 font-bold',
-                        'Watch': 'text-amber-600 font-semibold',
-                        'Divest': 'text-red-600',
-                      };
-                      return (
-                        <tr key={idx} className="hover:bg-gray-50/50 transition">
-                          <td className="py-2.5 px-5">
-                            <span className="font-semibold text-gray-800">{item.category_l2}</span>
-                            <span className="text-[9px] text-gray-400 ml-2">{item.category_l1}</span>
-                          </td>
-                          <td className="py-2.5 px-4 text-right font-mono text-gray-700">{formatNumber(item.tiki_sku)}</td>
-                          <td className="py-2.5 px-4 text-center font-mono text-gray-700">
-                            {item.tiki_sku > 0 ? (item.tiki_revenue / item.tiki_sku / 1_000_000).toFixed(1) : '0'}
-                          </td>
-                          <td className="py-2.5 px-4 text-center font-mono text-gray-700">{item.official_dom_ratio}%</td>
-                          <td className="py-2.5 px-4 text-center font-mono text-gray-500">{item.score_breakdown?.raw_total || item.opportunity_score}</td>
-                          <td className={`py-2.5 px-4 text-center text-xs ${actionColors[item.portfolio_action] || 'text-gray-500'}`}>
-                            {item.portfolio_action}
-                          </td>
-                          <td className="py-2.5 px-5 text-center">
-                            <span className={`inline-block px-2.5 py-1 rounded text-xs border ${levelColors[item.priority_level] || levelColors['Thấp']}`}>
-                              {item.priority_level}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-4 text-[10px] text-gray-600 leading-tight max-w-[200px]">
-                            <div className="group relative">
-                              <span className="cursor-help border-b border-dashed border-gray-300">{item.portfolio_reason?.slice(0, 50)}...</span>
-                              <div className="absolute left-0 bottom-full z-20 mb-2 hidden group-hover:block w-64 p-3 bg-slate-900 text-white text-[10px] rounded-xl shadow-xl border border-slate-700 leading-relaxed">
-                                <div className="font-bold text-emerald-400 mb-1">Chi tiết</div>
-                                {item.portfolio_reason}
-                                <div className="mt-2 pt-2 border-t border-slate-700 text-[9px] text-gray-400">
-                                  Điểm gốc: {item.score_breakdown?.raw_total || item.opportunity_score} | RevSKU: {item.score_breakdown?.rev_sku_contrib || 0}/40 | Thị phần: {item.score_breakdown?.sold_share_contrib || 0}/30 | Dom: {item.score_breakdown?.dom_gap_contrib || 0}/30
-                                </div>
-                                <div className="absolute w-3 h-3 bg-slate-900 rotate-45 left-3 -bottom-1.5 border-r border-b border-slate-700" />
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="bg-gray-50 px-5 py-3 border-t border-emerald-200 flex items-center gap-4 text-[10px] text-gray-500">
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300"></span> Cao (Invest)</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-100 border border-yellow-300"></span> Trung bình (Watch)</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-300"></span> Thấp (Divest)</span>
-                <span className="ml-auto italic">Phân loại dựa trên Portfolio Matrix ASG2 Q4 — Điều chỉnh từ điểm gốc Opportunity Score</span>
-              </div>
-            </div>
           </div>
 
             {/* SIDEBAR: Portfolio Matrix + Charts */}
@@ -1501,6 +1419,89 @@ export default function App() {
                   )}
                 </div>
               </div>
+
+            {/* PRIORITY CLASSIFICATION TABLE */}
+            <div className="glass-panel rounded-2xl border border-emerald-200 shadow-xl overflow-hidden bg-white mt-6">
+              <div className="px-5 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+                <h3 className="text-sm font-bold flex items-center gap-2">
+                  <Award className="w-5 h-5" /> Bảng phân loại mức độ ưu tiên — ASG2 Q4
+                </h3>
+                <p className="text-[10px] text-emerald-100 mt-0.5">
+                  Phân loại dựa trên Portfolio Matrix: Invest → Cao, Watch → Trung bình, Divest → Thấp
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-emerald-200 bg-emerald-50 text-[10px] uppercase font-bold tracking-wider text-gray-700 font-mono">
+                      <th className="py-3 px-5">Ngành hàng (L2)</th>
+                      <th className="py-3 px-4 text-right">SKU Tiki</th>
+                      <th className="py-3 px-4 text-center">Rev/SKU (tr)</th>
+                      <th className="py-3 px-4 text-center">Độc quyền (%)</th>
+                      <th className="py-3 px-4 text-center">Điểm gốc</th>
+                      <th className="py-3 px-4 text-center">Portfolio</th>
+                      <th className="py-3 px-5 text-center">Mức ưu tiên</th>
+                      <th className="py-3 px-4">Cơ sở phân loại</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-emerald-100 text-xs font-medium">
+                    {filteredGaps.map((item, idx) => {
+                      const levelColors = {
+                        'Cao': 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
+                        'Trung bình': 'bg-yellow-100 text-yellow-800 border-yellow-300 font-semibold',
+                        'Thấp': 'bg-red-100 text-red-800 border-red-300',
+                      };
+                      const actionColors = {
+                        'Invest': 'text-emerald-600 font-bold',
+                        'Watch': 'text-amber-600 font-semibold',
+                        'Divest': 'text-red-600',
+                      };
+                      return (
+                        <tr key={idx} className="hover:bg-gray-50/50 transition">
+                          <td className="py-2.5 px-5">
+                            <span className="font-semibold text-gray-800">{item.category_l2}</span>
+                            <span className="text-[9px] text-gray-400 ml-2">{item.category_l1}</span>
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono text-gray-700">{formatNumber(item.tiki_sku)}</td>
+                          <td className="py-2.5 px-4 text-center font-mono text-gray-700">
+                            {item.tiki_sku > 0 ? (item.tiki_revenue / item.tiki_sku / 1_000_000).toFixed(1) : '0'}
+                          </td>
+                          <td className="py-2.5 px-4 text-center font-mono text-gray-700">{item.official_dom_ratio}%</td>
+                          <td className="py-2.5 px-4 text-center font-mono text-gray-500">{item.score_breakdown?.raw_total || item.opportunity_score}</td>
+                          <td className={`py-2.5 px-4 text-center text-xs ${actionColors[item.portfolio_action] || 'text-gray-500'}`}>
+                            {item.portfolio_action}
+                          </td>
+                          <td className="py-2.5 px-5 text-center">
+                            <span className={`inline-block px-2.5 py-1 rounded text-xs border ${levelColors[item.priority_level] || levelColors['Thấp']}`}>
+                              {item.priority_level}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-4 text-[10px] text-gray-600 leading-tight max-w-[200px]">
+                            <div className="group relative">
+                              <span className="cursor-help border-b border-dashed border-gray-300">{item.portfolio_reason?.slice(0, 45)}...</span>
+                              <div className="absolute left-0 bottom-full z-20 mb-2 hidden group-hover:block w-64 p-3 bg-slate-900 text-white text-[10px] rounded-xl shadow-xl border border-slate-700 leading-relaxed">
+                                <div className="font-bold text-emerald-400 mb-1">Chi tiết</div>
+                                {item.portfolio_reason}
+                                <div className="mt-2 pt-2 border-t border-slate-700 text-[9px] text-gray-400">
+                                  Điểm gốc: {item.score_breakdown?.raw_total || item.opportunity_score} | RevSKU: {item.score_breakdown?.rev_sku_contrib || 0}/40 | Thị phần: {item.score_breakdown?.sold_share_contrib || 0}/30 | Dom: {item.score_breakdown?.dom_gap_contrib || 0}/30
+                                </div>
+                                <div className="absolute w-3 h-3 bg-slate-900 rotate-45 left-3 -bottom-1.5 border-r border-b border-slate-700" />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="bg-gray-50 px-5 py-3 border-t border-emerald-200 flex items-center gap-4 text-[10px] text-gray-500">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300"></span> Cao (Invest)</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-100 border border-yellow-300"></span> Trung bình (Watch)</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-300"></span> Thấp (Divest)</span>
+                <span className="ml-auto italic">Phân loại dựa trên Portfolio Matrix ASG2 Q4 — Điều chỉnh từ điểm gốc Opportunity Score</span>
+              </div>
+            </div>
 
             </div>
 
