@@ -1225,44 +1225,9 @@ export default function App() {
 
           </div>
 
-            {/* SIDEBAR: Portfolio Matrix + Charts */}
+            {/* SIDEBAR: Charts */}
             <div className="space-y-6 flex flex-col">
 
-              {/* ASG2 Q4 PORTFOLIO MATRIX */}
-              {dashboardData.portfolio_matrix && (
-                <div className="glass-panel rounded-2xl border border-emerald-200 shadow-xl bg-white overflow-hidden">
-                  <div className="px-5 py-3 border-b border-emerald-100 bg-emerald-50 flex items-center justify-between">
-                    <h3 className="text-xs font-bold font-mono uppercase text-gray-700">Portfolio Matrix — ASG2 Q4</h3>
-                    <span className="text-[10px] text-gray-500 italic">Divest / Watch / Invest</span>
-                  </div>
-                  <div className="divide-y divide-gray-50">
-                    {dashboardData.portfolio_matrix.map((item, idx) => {
-                      const actionConfig = {
-                        Invest: { bg: 'bg-emerald-50', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
-                        Watch:  { bg: 'bg-yellow-50',  text: 'text-yellow-700',  badge: 'bg-yellow-100 text-yellow-700 border-yellow-200',  dot: 'bg-yellow-500' },
-                        Divest: { bg: 'bg-red-50',     text: 'text-red-700',     badge: 'bg-red-100 text-red-700 border-red-200',           dot: 'bg-red-500'   },
-                      };
-                      const cfg = actionConfig[item.action] || actionConfig.Watch;
-                      return (
-                        <div key={idx} className={`px-4 py-2.5 flex items-center justify-between gap-3 ${cfg.bg}`}>
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                            <div>
-                              <div className="text-xs font-semibold text-gray-800">{item.category}</div>
-                              <div className="text-[10px] text-gray-500 truncate max-w-[130px]" title={item.reason}>{item.reason.slice(0, 50)}…</div>
-                            </div>
-                          </div>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border flex-shrink-0 ${cfg.badge}`}>
-                            {item.action}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              
               {/* MARKET SHARE CHART */}
               <div className="glass-panel p-3 rounded-2xl border border-emerald-200 shadow-xl bg-white">
                 <div className="flex items-center justify-between mb-2">
