@@ -201,6 +201,28 @@ class DashboardGenerator:
             # Portfolio action from Q4
             portfolio = PORTFOLIO_ACTIONS.get(cat_l2, {"action": "Monitor", "reason": "Insufficient data for classification"})
 
+            # Override priority score to align with Portfolio Matrix action
+            raw_opportunity_score = round(opportunity_score, 1)
+            if portfolio["action"] == "Invest":
+                priority_level = "Cao"
+                adjusted_score = max(80.0, raw_opportunity_score)
+            elif portfolio["action"] == "Watch":
+                priority_level = "Trung bình"
+                adjusted_score = max(50.0, min(79.9, raw_opportunity_score))
+            elif portfolio["action"] == "Divest":
+                priority_level = "Thấp"
+                adjusted_score = min(19.9, raw_opportunity_score)
+            else:
+                priority_level = "Thấp"
+                adjusted_score = raw_opportunity_score
+
+            score_breakdown = {
+                "rev_sku_contrib": round(0.4 * rev_sku_norm * 100, 1),
+                "sold_share_contrib": round(0.3 * sold_share * 100, 1),
+                "dom_gap_contrib": round(0.3 * (1 - official_dom_ratio) * 100, 1),
+                "raw_total": raw_opportunity_score,
+            }
+
             gap_data.append({
                 "category_l1": cat_l1,
                 "category_l2": cat_l2,
@@ -215,11 +237,13 @@ class DashboardGenerator:
                 "competitor_avg_price": int(comp_avg_price),
                 "sku_gap": int(sku_gap),
                 "revenue_potential": int(revenue_potential),
-                "priority_score": round(opportunity_score, 1),
-                "opportunity_score": round(opportunity_score, 1),  # same, explicit alias
+                "priority_score": round(adjusted_score, 1),
+                "opportunity_score": raw_opportunity_score,
+                "priority_level": priority_level,
                 "portfolio_action": portfolio["action"],
                 "portfolio_reason": portfolio["reason"],
                 "priority_reason": priority_reason,
+                "score_breakdown": score_breakdown,
             })
 
         # Sort by opportunity_score descending
