@@ -238,6 +238,28 @@ def get_stats():
         }), 500
 
 
+@app.route('/api/decision/evaluate', methods=['GET', 'POST'])
+def evaluate_decision_endpoint():
+    """
+    Evaluate best product and decision score for selected category.
+    Query params / JSON body:
+        - category: category_l2 name (e.g., 'Đồ lót nam', 'Quần short nam')
+    """
+    try:
+        category_l2 = request.args.get('category')
+        if not category_l2 and request.is_json and request.get_json():
+            category_l2 = request.json.get('category')
+            
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from dashboard_generator import DashboardGenerator
+        
+        generator = DashboardGenerator()
+        res = generator.evaluate_decision(category_l2)
+        return jsonify(res)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/dashboard/all', methods=['GET'])
 def get_dashboard_all():
     """

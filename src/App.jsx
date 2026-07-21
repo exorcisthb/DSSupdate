@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { 
   TrendingUp, ShoppingBag, AlertCircle, Filter, Search, ExternalLink, 
-  Star, Percent, Award, Info, Calendar, DollarSign, Layers, CheckCircle2, XCircle, Zap, Activity, Database
+  Star, Percent, Award, Info, Calendar, DollarSign, Layers, CheckCircle2, XCircle, Zap, Activity, Database, Sparkles, X
 } from 'lucide-react';
 import ForecastTab from './ForecastTab';
 import WhatIfTab from './WhatIfTab';
@@ -78,7 +78,313 @@ function ProductCardImage({ src, name, category, discount, platform }) {
   );
 }
 
+// ── Decision Assistant Modal Component ──────────────────────────────────────
+function DecisionAssistantModal({ isOpen, onClose }) {
+  const [selectedCategory, setSelectedCategory] = useState('Đồ lót nam');
+  const [evalData, setEvalData] = useState(null);
+  const [loadingEval, setLoadingEval] = useState(false);
+  const [evalError, setEvalError] = useState(null);
+
+  const categories = [
+    'Đồ lót nam', 'Quần short nam', 'Đồ bơi - Đồ đi biển nam', 
+    'Áo thun nam', 'Áo sơ mi nam', 'Phụ kiện thời trang', 'Giày - Dép nam'
+  ];
+
+  const handleEvaluate = async (category) => {
+    const catToUse = category || selectedCategory;
+    try {
+      setLoadingEval(true);
+      setEvalError(null);
+      const res = await fetch(`${API_BASE_URL}/api/decision/evaluate?category=${encodeURIComponent(catToUse)}`);
+      if (!res.ok) throw new Error('Không thể tải kết quả chẩn đoán');
+      const data = await res.json();
+      setEvalData(data);
+    } catch (err) {
+      setEvalError(err.message);
+    } finally {
+      setLoadingEval(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      handleEvaluate(selectedCategory);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+      <div className="bg-white rounded-3xl shadow-2xl border border-emerald-200 max-w-4xl w-full max-h-[92vh] overflow-y-auto flex flex-col relative">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-6 rounded-t-3xl relative">
+          <button 
+            onClick={onClose}
+            className="absolute top-5 right-5 p-2 text-gray-400 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-2xl text-slate-950 font-bold shadow-lg shadow-emerald-500/30">
+              <Zap className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold font-mono tracking-wider uppercase border border-emerald-500/30">
+                  DSS Decision Engine v3.5
+                </span>
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-white mt-1">
+                TRỢ LÝ RA QUYẾT ĐỊNH CHỌN SẢN PHẨM TỐT NHẤT
+              </h2>
+              <p className="text-gray-300 text-xs mt-0.5">
+                Chọn ngách hàng ➔ Mô hình phân tích 4 tiêu chí có trọng số ➔ Đưa ra Sản phẩm Tốt nhất & Lý do minh bạch
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Category Select Bar */}
+        <div className="p-5 bg-emerald-50/60 border-b border-emerald-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+          <div className="flex flex-col gap-1 flex-grow">
+            <label className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-emerald-600" /> Chọn Ngành Hàng Muốn Ra Quyết Định:
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => {
+                    setSelectedCategory(cat);
+                    handleEvaluate(cat);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                    selectedCategory === cat
+                      ? 'bg-emerald-600 text-white font-bold shadow-md shadow-emerald-600/30 scale-105'
+                      : 'bg-white text-gray-700 hover:bg-emerald-100 border border-emerald-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={() => handleEvaluate(selectedCategory)}
+            disabled={loadingEval}
+            className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2 flex-shrink-0"
+          >
+            {loadingEval ? (
+              <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4" />
+            ) : (
+              <>
+                <Zap className="w-4 h-4 fill-amber-300 text-amber-300" /> Chẩn đoán & Đánh giá
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Evaluation Output Details */}
+        <div className="p-6 space-y-6 flex-grow">
+          {loadingEval && (
+            <div className="py-16 text-center space-y-3">
+              <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-xs font-semibold text-gray-600">Đang chạy mô hình phân tích 4 tiêu chí có trọng số...</p>
+            </div>
+          )}
+
+          {evalError && (
+            <div className="p-4 bg-red-50 text-red-700 rounded-xl text-xs border border-red-200 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" /> {evalError}
+            </div>
+          )}
+
+          {evalData && !loadingEval && (
+            <>
+              {/* TOP SCORE OVERVIEW BANNER */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2 glass-panel p-5 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold font-mono tracking-wider uppercase text-emerald-800">
+                      Ngành hàng chẩn đoán: {evalData.category_l2}
+                    </span>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-4xl font-extrabold font-mono text-gray-900 tabular-nums">
+                        {evalData.total_dss_score}
+                      </span>
+                      <span className="text-sm font-semibold text-gray-500">/ 100 điểm DSS</span>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Thang điểm tổng hợp từ 4 tiêu chí trọng số: Nhu cầu (35%), Khoảng trống (30%), Khả thi giá (20%), Xu hướng (15%).
+                    </p>
+                  </div>
+
+                  <div className="text-right flex-shrink-0">
+                    <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider block mb-1">Khuyến nghị ra quyết định</span>
+                    <span className={`inline-block px-4 py-2 rounded-xl text-xs font-bold uppercase shadow ${
+                      evalData.badge_color === 'green' ? 'bg-emerald-600 text-white shadow-emerald-500/30' :
+                      evalData.badge_color === 'yellow' ? 'bg-amber-500 text-white shadow-amber-500/30' :
+                      'bg-red-600 text-white shadow-red-500/30'
+                    }`}>
+                      {evalData.decision_action}
+                    </span>
+                  </div>
+                </div>
+
+                {/* FORMULA TRANSPARENCY CARD */}
+                <div className="glass-panel p-4 rounded-2xl border border-teal-200 bg-slate-900 text-white flex flex-col justify-between">
+                  <div>
+                    <span className="text-[10px] font-mono text-teal-400 uppercase tracking-wider font-bold block">📐 Công thức tính điểm minh bạch</span>
+                    <div className="mt-2 text-[11px] font-mono bg-slate-800/80 p-2.5 rounded-lg border border-slate-700 text-emerald-300 leading-relaxed">
+                      {evalData.formula_explanation}
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-gray-400 italic mt-2">
+                    * Đã chuẩn hóa dữ liệu 0–100 theo tiêu chuẩn lý thuyết DSS.
+                  </span>
+                </div>
+              </div>
+
+              {/* DETAILED CRITERIA BREAKDOWN */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-800 flex items-center gap-1.5">
+                  <Activity className="w-4 h-4 text-emerald-600" /> Kết Quả Chấm Điểm 4 Tiêu Chí Chi Tiết & Lý Do:
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {evalData.criteria_breakdown.map((crit, idx) => (
+                    <div key={idx} className="p-4 rounded-xl border border-gray-200 bg-white shadow-sm hover:border-emerald-300 transition">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold text-gray-800">{crit.name}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-mono text-gray-500">Trọng số {crit.weight}%</span>
+                          <span className="text-xs font-bold font-mono px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                            {crit.score} / 100
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
+                        <div 
+                          className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full"
+                          style={{ width: `${Math.min(100, crit.score)}%` }}
+                        />
+                      </div>
+
+                      <p className="text-[11px] text-gray-600 leading-normal">
+                        <strong>Lý do:</strong> {crit.reason}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* WINNING BEST PRODUCT RECOMMENDATION CARD */}
+              <div className="glass-panel p-5 rounded-2xl border-2 border-emerald-400 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/80 shadow-xl space-y-4">
+                <div className="flex items-center justify-between border-b border-emerald-200 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Award className="w-5 h-5 text-amber-500" />
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-gray-900">
+                      🏆 SẢN PHẨM TỐT NHẤT ĐƯỢC MÔ HÌNH ĐỀ XUẤT NHẬP VỀ BÁN
+                    </h3>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold font-mono uppercase">
+                    Rank #1 Nổi Bật Ngách
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-5 items-center">
+                  <div className="w-32 h-32 rounded-xl overflow-hidden shadow border border-emerald-200 flex-shrink-0 relative">
+                    <ProductCardImage 
+                      src={evalData.best_product.thumbnail}
+                      name={evalData.best_product.product_name}
+                      category={evalData.category_l2}
+                    />
+                  </div>
+
+                  <div className="flex-grow space-y-2 text-center sm:text-left">
+                    <h4 className="text-sm font-bold text-gray-900 line-clamp-2">
+                      {evalData.best_product.product_name}
+                    </h4>
+
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs">
+                      <div>
+                        <span className="text-gray-500 block text-[10px]">Giá thị trường hiện tại</span>
+                        <span className="font-mono text-gray-400 line-through">
+                          {formatCurrency(evalData.best_product.current_price)}
+                        </span>
+                      </div>
+
+                      <div className="p-2 bg-emerald-100 rounded-lg border border-emerald-200">
+                        <span className="text-emerald-800 font-bold block text-[10px]">👉 GIÁ NÊN ĐẶT (-15.2% Rẻ hơn Chính Hãng)</span>
+                        <span className="font-mono text-base font-extrabold text-emerald-700">
+                          {formatCurrency(evalData.best_product.target_price)}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-gray-500 block text-[10px]">Đã bán thị trường</span>
+                        <span className="font-mono font-bold text-gray-800">
+                          {formatNumber(evalData.best_product.sold_count)} cái
+                        </span>
+                      </div>
+                    </div>
+
+                    {evalData.best_product.url && (
+                      <a
+                        href={evalData.best_product.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-900 underline pt-1"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" /> Xem sản phẩm gốc trên Tiki.vn
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3-STEP ACTION PLAN */}
+                <div className="mt-3 p-4 bg-white rounded-xl border border-emerald-200 space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-800 block">
+                    📋 Kế Hoạch Thực Thi 3 Bước Cho Chủ Shop:
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {evalData.action_plan.map((step, idx) => (
+                      <div key={idx} className="p-2.5 rounded-lg bg-emerald-50/50 border border-emerald-100 text-[11px] text-gray-700 font-medium leading-tight">
+                        {step}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Modal Footer */}
+        <div className="p-4 bg-gray-50 border-t border-gray-200 rounded-b-3xl flex items-center justify-between">
+          <span className="text-xs text-gray-500">
+            Mô hình hỗ trợ quyết định DSS — Dựa trên dữ liệu cào thực tế từ Tiki, Lazada, Shopee.
+          </span>
+          <button
+            onClick={onClose}
+            className="px-5 py-2 rounded-xl bg-gray-800 text-white font-bold text-xs hover:bg-gray-900 transition"
+          >
+            Đóng Cửa Sổ
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
+  // Modal state
+  const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
+
   // Loading & Data States
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -297,16 +603,26 @@ export default function App() {
             </p>
           </div>
           
-          <div className="flex items-center gap-4 text-xs text-gray-600 self-start md:self-auto bg-white/80 px-4 py-2 rounded-lg border border-emerald-100 shadow-sm">
-            <span className="flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-emerald-500" />
-              Thu thập ngày: <strong className="text-gray-800">{dashboardData?.overview?.date_collected_range || '16/07 - 21/07/2026'}</strong>
-            </span>
-            <span className="w-px h-3 bg-emerald-200" />
-            <span className="flex items-center gap-1.5">
-              <Info className="w-3.5 h-3.5 text-sky-500" />
-              Tình trạng: <span className="text-emerald-600 flex items-center gap-1 font-medium">Ổn định <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span></span>
-            </span>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600 self-start md:self-auto">
+            <button
+              onClick={() => setIsDecisionModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 transition-all hover:scale-105 animate-pulse"
+            >
+              <Zap className="w-4 h-4 fill-amber-300 text-amber-300" />
+              <span>🚀 TRỢ LÝ RA QUYẾT ĐỊNH</span>
+            </button>
+
+            <div className="flex items-center gap-3 bg-white/80 px-4 py-2 rounded-xl border border-emerald-100 shadow-sm">
+              <span className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-emerald-500" />
+                Thu thập ngày: <strong className="text-gray-800">{dashboardData?.overview?.date_collected_range || '16/07 - 21/07/2026'}</strong>
+              </span>
+              <span className="w-px h-3 bg-emerald-200" />
+              <span className="flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5 text-sky-500" />
+                Tình trạng: <span className="text-emerald-600 flex items-center gap-1 font-medium">Ổn định <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span></span>
+              </span>
+            </div>
           </div>
         </div>
       </header>
@@ -626,6 +942,27 @@ export default function App() {
 
             {/* MAIN DATA SECTION */}
             <div className="lg:col-span-2 space-y-6 flex flex-col">
+
+              {/* CALL TO ACTION BANNER FOR DECISION ASSISTANT */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 text-white shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur flex-shrink-0">
+                    <Zap className="w-6 h-6 fill-amber-300 text-amber-300 animate-bounce" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold tracking-tight">TRỢ LÝ RA QUYẾT ĐỊNH THÔNG MINH (DSS AI ASSISTANT)</h4>
+                    <p className="text-xs text-emerald-100 opacity-90">
+                      Chưa biết chọn sản phẩm nào? Bấm vào đây để mô hình chấm điểm & đưa ra Sản phẩm Tốt nhất ngay lập tức!
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsDecisionModalOpen(true)}
+                  className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 flex-shrink-0"
+                >
+                  ⚡ RA QUYẾT ĐỊNH NGAY
+                </button>
+              </div>
 
               {/* PRIMARY CHART: Opportunity Score Horizontal Bar Chart (ASG3 Spec) */}
               <div className="glass-panel p-5 rounded-2xl border border-emerald-200 shadow-xl bg-white">
@@ -1109,6 +1446,12 @@ export default function App() {
           <span>Tiki Fashion DSS v1.0.0 © 2026. Phân tích nội bộ dành riêng cho Seller Thời Trang.</span>
           <span>Chú ý: Đây là số liệu ước tính hỗ trợ quyết định (DSS), không đại diện cho doanh số chính thức của các sàn TMĐT.</span>
         </div>
+
+        {/* DECISION ASSISTANT MODAL */}
+        <DecisionAssistantModal
+          isOpen={isDecisionModalOpen}
+          onClose={() => setIsDecisionModalOpen(false)}
+        />
 
       </footer>
     </div>
