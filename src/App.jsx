@@ -253,7 +253,7 @@ export default function App() {
           <div className="flex items-center gap-4 text-xs text-gray-600 self-start md:self-auto bg-white/80 px-4 py-2 rounded-lg border border-emerald-100 shadow-sm">
             <span className="flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-emerald-500" />
-              Thu thập ngày: <strong className="text-gray-800">26/06 - 02/07/2026</strong>
+              Thu thập ngày: <strong className="text-gray-800">{dashboardData?.overview?.date_collected_range || '16/07 - 21/07/2026'}</strong>
             </span>
             <span className="w-px h-3 bg-emerald-200" />
             <span className="flex items-center gap-1.5">
@@ -742,7 +742,7 @@ export default function App() {
                       Xu hướng tăng trưởng Tiki
                     </h3>
                     <p className="text-gray-600 text-xs mt-0.5">
-                      Trực quan snapshot lượng bán tích lũy 5 ngày (26–30/06)
+                      Trực quan snapshot lượng bán tích lũy 5 ngày gần nhất
                     </p>
                   </div>
                   <div className="flex bg-emerald-100 p-0.5 rounded-lg border border-emerald-200 text-[10px] font-mono">

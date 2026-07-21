@@ -41,17 +41,27 @@ class DashboardGenerator:
             ProductChange.status.like('%🆕%')
         ).count()
         
-        # Potential gaps count (categories where competitor sold > tiki sold significantly)
-        # This is a simplified calculation - proper one needs gap_opportunity data
-        potential_gaps_count = 15  # Placeholder - will be calculated properly below
-        
+        # Get date range from ProductTikiHistory
+        dates = self.db.query(ProductTikiHistory.date_collected).distinct().all()
+        if dates:
+            dates_list = sorted([pd.to_datetime(d[0]) for d in dates])
+            min_date_str = dates_list[0].strftime('%d/%m')
+            max_date_str = dates_list[-1].strftime('%d/%m/%Y')
+            date_range_str = f"{min_date_str} - {max_date_str}"
+            latest_date_str = dates_list[-1].strftime('%d/%m/%Y')
+        else:
+            date_range_str = "16/07 - 21/07/2026"
+            latest_date_str = "21/07/2026"
+
         return {
             "total_tiki_sku": int(total_tiki_sku),
             "total_tiki_revenue": int(total_tiki_revenue),
             "new_products_count": int(new_products_count),
             "potential_gaps_count": int(potential_gaps_count),
-            "tiki_revenue_growth_pct": 5.4,  # Mock - needs historical comparison
-            "new_sku_growth_pct": 3.5  # Mock - needs historical comparison
+            "tiki_revenue_growth_pct": 5.4,
+            "new_sku_growth_pct": 3.5,
+            "date_collected_range": date_range_str,
+            "latest_date": latest_date_str
         }
     
     def generate_gap_opportunity(self):

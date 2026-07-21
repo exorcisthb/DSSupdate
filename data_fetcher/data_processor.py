@@ -90,7 +90,12 @@ class DataProcessor:
     def ingest_tiki_historical(self, df: pd.DataFrame, source_identifier: str) -> int:
         """Ingest Tiki historical data."""
         print(f"📊 Processing {len(df)} Tiki historical records...")
-        
+
+        # Pre-cache existing ProductTiki IDs
+        existing_tiki_ids = set(
+            p[0] for p in self.db.query(ProductTiki.product_id).all()
+        )
+
         records_added = 0
         for _, row in df.iterrows():
             try:
@@ -98,44 +103,75 @@ class DataProcessor:
                 date_collected = row.get('date_collected')
                 if pd.isna(date_collected):
                     continue
-                
+
                 if isinstance(date_collected, str):
                     date_collected = pd.to_datetime(date_collected)
-                
+
+                pid = str(row.get('product_id', '')).strip()
+                if not pid or pid == 'nan':
+                    continue
+
+                # Ensure parent ProductTiki exists to satisfy Foreign Key constraint
+                if pid not in existing_tiki_ids:
+                    del_days = row.get('delivery_estimate_days')
+                    del_days_val = 3.0 if pd.isna(del_days) else float(del_days)
+                    stub_product = ProductTiki(
+                        product_id=pid,
+                        product_name=str(row.get('product_name', 'Sản phẩm Tiki')),
+                        category_l1=str(row.get('category_l1', 'Thời trang nam')),
+                        category_l2=str(row.get('category_l2', 'Khác')),
+                        price=float(row.get('price', 0) if not pd.isna(row.get('price')) else 0),
+                        sold_count=int(row.get('sold_count', 0) if not pd.isna(row.get('sold_count')) else 0),
+                        estimated_revenue=float(row.get('estimated_revenue', 0) if not pd.isna(row.get('estimated_revenue')) else 0),
+                        rating=float(row.get('rating', 0) if not pd.isna(row.get('rating')) else 0),
+                        review_count=int(row.get('review_count', 0) if not pd.isna(row.get('review_count')) else 0),
+                        discount_rate=float(row.get('discount_rate', 0) if not pd.isna(row.get('discount_rate')) else 0),
+                        url=str(row.get('url', '')),
+                        thumbnail=str(row.get('thumbnail', '')),
+                        is_authentic=bool(row.get('is_authentic', False)),
+                        delivery_estimate_days=del_days_val
+                    )
+                    self.db.add(stub_product)
+                    self.db.flush()
+                    existing_tiki_ids.add(pid)
+
                 # Check if record already exists
                 existing = self.db.query(ProductTikiHistory).filter(
                     and_(
-                        ProductTikiHistory.product_id == str(row.get('product_id', '')),
+                        ProductTikiHistory.product_id == pid,
                         ProductTikiHistory.date_collected == date_collected
                     )
                 ).first()
-                
+
                 if existing:
                     continue
-                
+
+                del_days = row.get('delivery_estimate_days')
+                del_days_val = 3.0 if pd.isna(del_days) else float(del_days)
+
                 history = ProductTikiHistory(
-                    product_id=str(row.get('product_id', '')),
+                    product_id=pid,
                     product_name=str(row.get('product_name', '')),
                     category_l1=str(row.get('category_l1', '')),
                     category_l2=str(row.get('category_l2', '')),
-                    price=float(row.get('price', 0)),
-                    sold_count=int(row.get('sold_count', 0)),
-                    estimated_revenue=float(row.get('estimated_revenue', 0)),
-                    rating=float(row.get('rating', 0)),
-                    review_count=int(row.get('review_count', 0)),
-                    discount_rate=float(row.get('discount_rate', 0)),
+                    price=float(row.get('price', 0) if not pd.isna(row.get('price')) else 0),
+                    sold_count=int(row.get('sold_count', 0) if not pd.isna(row.get('sold_count')) else 0),
+                    estimated_revenue=float(row.get('estimated_revenue', 0) if not pd.isna(row.get('estimated_revenue')) else 0),
+                    rating=float(row.get('rating', 0) if not pd.isna(row.get('rating')) else 0),
+                    review_count=int(row.get('review_count', 0) if not pd.isna(row.get('review_count')) else 0),
+                    discount_rate=float(row.get('discount_rate', 0) if not pd.isna(row.get('discount_rate')) else 0),
                     url=str(row.get('url', '')),
                     thumbnail=str(row.get('thumbnail', '')),
                     is_authentic=bool(row.get('is_authentic', False)),
-                    delivery_estimate_days=float(row.get('delivery_estimate_days', 3.0)),
+                    delivery_estimate_days=del_days_val,
                     date_collected=date_collected
                 )
                 self.db.add(history)
                 records_added += 1
             except Exception as e:
-                print(f"⚠️  Error processing historical record: {e}")
+                print(f"⚠️ Error processing historical record: {e}")
                 continue
-        
+
         self.db.commit()
         print(f"✅ Ingested {records_added} historical records")
         return records_added
