@@ -41,6 +41,9 @@ class DashboardGenerator:
             ProductChange.status.like('%🆕%')
         ).count()
         
+        # Potential gaps count
+        potential_gaps_count = 15
+
         # Get date range from ProductTikiHistory
         dates = self.db.query(ProductTikiHistory.date_collected).distinct().all()
         if dates:
