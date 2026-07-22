@@ -448,7 +448,8 @@ class DashboardGenerator:
                     "thumbnail": p.thumbnail or "",
                     "platform": "Lazada",
                     "category_l1": p.category_l1,
-                    "category_l2": p.category_l2
+                    "category_l2": p.category_l2,
+                    "is_authentic": bool(p.is_authentic)
                 })
             
             # Top Shopee products
@@ -474,7 +475,8 @@ class DashboardGenerator:
                     "thumbnail": p.thumbnail or "",
                     "platform": "Shopee",
                     "category_l1": p.category_l1,
-                    "category_l2": p.category_l2
+                    "category_l2": p.category_l2,
+                    "is_authentic": bool(p.is_authentic)
                 })
         
         # Sort by sold count
@@ -674,7 +676,8 @@ class DashboardGenerator:
                 "sold_count": best_prod.sold_count if best_prod else 0,
                 "rating": best_prod.rating if best_prod else 4.8,
                 "review_count": best_prod.review_count if best_prod else 150,
-                "url": best_prod.url if best_prod else ""
+                "url": best_prod.url if best_prod else "",
+                "is_authentic": bool(best_prod.is_authentic) if best_prod else False
             },
             "top_products": [
                 {
@@ -685,7 +688,8 @@ class DashboardGenerator:
                     "sold_count": p.sold_count or 0,
                     "rating": p.rating or 0,
                     "review_count": p.review_count or 0,
-                    "url": p.url or ""
+                    "url": p.url or "",
+                    "is_authentic": bool(p.is_authentic)
                 }
                 for p in tiki_prods[:10]
             ],

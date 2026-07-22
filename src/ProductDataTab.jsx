@@ -167,8 +167,9 @@ export default function ProductDataTab({ platform, selectedL1: globalL1, searchQ
             <thead className="bg-emerald-50 border-b border-emerald-200">
               <tr className="text-xs font-bold text-gray-700 uppercase tracking-wider">
                 <th className="py-4 px-4 text-left">Hình ảnh</th>
-                <th className="py-4 px-4 text-left">Tên sản phẩm</th>
-                <th className="py-4 px-4 text-left">Danh mục</th>
+                  <th className="py-4 px-4 text-left">Tên sản phẩm</th>
+                  <th className="py-4 px-4 text-center">Xác thực</th>
+                  <th className="py-4 px-4 text-left">Danh mục</th>
                 <th className="py-4 px-4 text-right">Giá</th>
                 {platform === 'Tiki' && (
                   <>
@@ -208,6 +209,19 @@ export default function ProductDataTab({ platform, selectedL1: globalL1, searchQ
                     </p>
                     {platform !== 'Tiki' && product.origin && (
                       <p className="text-xs text-gray-500 mt-1">Xuất xứ: {product.origin}</p>
+                    )}
+                  </td>
+
+                  {/* Authentic Badge */}
+                  <td className="py-3 px-4 text-center">
+                    {product.is_authentic ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded border border-emerald-300">
+                        ✓ Chính hãng
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-bold rounded border border-gray-200">
+                        Thường
+                      </span>
                     )}
                   </td>
 

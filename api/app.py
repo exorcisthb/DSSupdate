@@ -482,6 +482,7 @@ def get_tiki_products():
             'rating': float(p.rating),
             'review_count': p.review_count,
             'discount_rate': float(p.discount_rate),
+            'is_authentic': bool(p.is_authentic),
             'url': p.url,
             'thumbnail': p.thumbnail,
             'last_updated': p.last_updated.isoformat() if p.last_updated else None
@@ -562,6 +563,7 @@ def get_top_tiki_products():
             'rating': float(p.rating),
             'review_count': p.review_count,
             'discount_rate': float(p.discount_rate),
+            'is_authentic': bool(p.is_authentic),
             'url': p.url,
             'thumbnail': p.thumbnail,
             'badge': _get_product_badge(p, metric)
@@ -655,6 +657,7 @@ def get_external_products():
             'rating': float(p.rating),
             'review_count': p.review_count,
             'discount_rate': float(p.discount_rate),
+            'is_authentic': bool(p.is_authentic),
             'origin': p.origin,
             'url': p.url,
             'thumbnail': p.thumbnail,

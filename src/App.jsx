@@ -336,6 +336,15 @@ function DecisionAssistantModal({ isOpen, onClose, allCategories = [] }) {
                     <h4 className="text-sm font-bold text-gray-900 line-clamp-2">
                       {evalData.best_product.product_name}
                     </h4>
+                    {evalData.best_product.is_authentic ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded border border-emerald-300">
+                        ✓ Chính hãng
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-bold rounded border border-gray-200">
+                        Thường
+                      </span>
+                    )}
 
                     <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs">
                       <div>
@@ -436,9 +445,10 @@ function DecisionAssistantModal({ isOpen, onClose, allCategories = [] }) {
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="bg-gray-50">
-                            <th className="p-2.5 text-left font-bold text-gray-600 uppercase tracking-wider">#</th>
-                            <th className="p-2.5 text-left font-bold text-gray-600 uppercase tracking-wider">Sản phẩm</th>
-                            <th className="p-2.5 text-right font-bold text-gray-600 uppercase tracking-wider">Giá</th>
+                  <th className="p-2.5 text-left font-bold text-gray-600 uppercase tracking-wider">#</th>
+                  <th className="p-2.5 text-left font-bold text-gray-600 uppercase tracking-wider">Sản phẩm</th>
+                  <th className="p-2.5 text-center font-bold text-gray-600 uppercase tracking-wider">Xác thực</th>
+                  <th className="p-2.5 text-right font-bold text-gray-600 uppercase tracking-wider">Giá</th>
                             <th className="p-2.5 text-right font-bold text-gray-600 uppercase tracking-wider">Đã bán</th>
                             <th className="p-2.5 text-right font-bold text-gray-600 uppercase tracking-wider">Đánh giá</th>
                             <th className="p-2.5 text-right font-bold text-gray-600 uppercase tracking-wider">Review</th>
@@ -477,6 +487,17 @@ function DecisionAssistantModal({ isOpen, onClose, allCategories = [] }) {
                                       {isBest && <span className="ml-1.5 text-[10px] text-emerald-600 font-bold">(Top 1)</span>}
                                     </span>
                                   </div>
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  {prod.is_authentic ? (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-bold rounded border border-emerald-300">
+                                      ✓ CH
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 text-[9px] font-bold rounded border border-gray-200">
+                                      T
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="p-2.5 text-right font-mono font-bold text-gray-800">
                                   {formatCurrency(prod.current_price)}
@@ -1613,6 +1634,15 @@ export default function App() {
                         <h4 className="text-xs font-semibold text-gray-800 line-clamp-2 h-8 leading-relaxed mb-2" title={prod.name}>
                           {prod.name}
                         </h4>
+                        {prod.is_authentic ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-bold rounded border border-emerald-300">
+                            ✓ Chính hãng
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-[9px] font-bold rounded border border-gray-200">
+                            Thường
+                          </span>
+                        )}
                       </div>
                       
                       <div className="space-y-2">

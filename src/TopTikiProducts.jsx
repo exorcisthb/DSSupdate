@@ -297,6 +297,15 @@ export default function TopTikiProducts({ selectedL1, searchQuery: globalSearchQ
                 <h4 className="text-sm font-semibold text-gray-800 line-clamp-2 mt-1 leading-relaxed">
                   {product.product_name}
                 </h4>
+                {product.is_authentic ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 mt-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded border border-emerald-300">
+                    ✓ Chính hãng
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 mt-1 bg-gray-100 text-gray-500 text-[10px] font-bold rounded border border-gray-200">
+                    Thường
+                  </span>
+                )}
               </div>
 
               {/* Metrics */}
