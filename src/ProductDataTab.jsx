@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ExternalLink, Star, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, ExternalLink, Star, Filter, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
 
@@ -14,7 +14,7 @@ const formatNumber = (val) => {
   return new Intl.NumberFormat('vi-VN').format(val);
 };
 
-export default function ProductDataTab({ platform, selectedL1: globalL1, searchQuery: globalSearchQuery, priceRange: globalPriceRange, minRating: globalMinRating }) {
+export default function ProductDataTab({ platform, selectedL1: globalL1, selectedL2: globalL2, searchQuery: globalSearchQuery, priceRange: globalPriceRange, minRating: globalMinRating }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -39,6 +39,9 @@ export default function ProductDataTab({ platform, selectedL1: globalL1, searchQ
       }
       if (globalL1 && globalL1 !== 'All') {
         params.append('category_l1', globalL1);
+      }
+      if (globalL2 && globalL2 !== 'All') {
+        params.append('category_l2', globalL2);
       }
 
       if (platform === 'Tiki') {
@@ -77,7 +80,7 @@ export default function ProductDataTab({ platform, selectedL1: globalL1, searchQ
 
   useEffect(() => {
     fetchProducts();
-  }, [page, platform, globalL1, globalSearchQuery, globalPriceRange, globalMinRating]);
+  }, [page, platform, globalL1, globalL2, globalSearchQuery, globalPriceRange, globalMinRating]);
 
   const handleSearch = () => {
     setPage(1);
@@ -186,7 +189,7 @@ export default function ProductDataTab({ platform, selectedL1: globalL1, searchQ
                 <tr key={idx} className="hover:bg-emerald-50/50 transition">
                   {/* Thumbnail */}
                   <td className="py-3 px-4">
-                    {product.thumbnail ? (
+                    {product.thumbnail && !product.thumbnail.includes('nan') && product.thumbnail.trim().length > 3 ? (
                       <img
                         src={product.thumbnail}
                         alt={product.product_name}
@@ -196,8 +199,8 @@ export default function ProductDataTab({ platform, selectedL1: globalL1, searchQ
                         }}
                       />
                     ) : (
-                      <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center text-gray-400 text-xs">
-                        No img
+                      <div className="w-16 h-16 bg-gradient-to-br from-teal-600 to-emerald-800 rounded flex items-center justify-center text-white text-xs shadow-inner">
+                        <ShoppingBag className="w-6 h-6 opacity-70" />
                       </div>
                     )}
                   </td>

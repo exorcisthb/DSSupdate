@@ -53,7 +53,7 @@ const formatNumber = (val) => {
   return new Intl.NumberFormat('vi-VN').format(val);
 };
 
-export default function TopTikiProducts({ selectedL1, searchQuery: globalSearchQuery, priceRange, minRating }) {
+export default function TopTikiProducts({ selectedL1, selectedL2, searchQuery: globalSearchQuery, priceRange, minRating }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -71,6 +71,9 @@ export default function TopTikiProducts({ selectedL1, searchQuery: globalSearchQ
       // Apply global category filter
       if (selectedL1 && selectedL1 !== 'All') {
         params.append('category_l1', selectedL1);
+      }
+      if (selectedL2 && selectedL2 !== 'All') {
+        params.append('category_l2', selectedL2);
       }
 
       const response = await fetch(`${API_BASE_URL}/api/products/tiki/top?${params}`);
@@ -91,7 +94,7 @@ export default function TopTikiProducts({ selectedL1, searchQuery: globalSearchQ
 
   useEffect(() => {
     fetchProducts();
-  }, [metric, selectedL1]);
+  }, [metric, selectedL1, selectedL2]);
 
   // Apply all global filters
   const filteredProducts = products.filter(p => {

@@ -16,6 +16,18 @@ import pandas as pd
 from datetime import datetime
 
 
+def _safe_thumb(val):
+    """Normalize thumbnail, return '' for None/NaN/'nan'."""
+    if val is None:
+        return ""
+    if isinstance(val, str):
+        v = val.strip()
+        if v.lower() == 'nan' or len(v) < 3:
+            return ""
+        return v
+    return str(val) if val else ""
+
+
 class DashboardGenerator:
     """Generate dashboard data from database."""
     
@@ -445,7 +457,7 @@ class DashboardGenerator:
                     "reviews": int(p.review_count or 0),
                     "origin": p.origin or "Không rõ",
                     "link": p.url,
-                    "thumbnail": p.thumbnail or "",
+                    "thumbnail": _safe_thumb(p.thumbnail),
                     "platform": "Lazada",
                     "category_l1": p.category_l1,
                     "category_l2": p.category_l2,
@@ -472,7 +484,7 @@ class DashboardGenerator:
                     "reviews": int(p.review_count or 0),
                     "origin": "Không rõ",
                     "link": p.url,
-                    "thumbnail": p.thumbnail or "",
+                    "thumbnail": _safe_thumb(p.thumbnail),
                     "platform": "Shopee",
                     "category_l1": p.category_l1,
                     "category_l2": p.category_l2,
@@ -568,9 +580,10 @@ class DashboardGenerator:
         ]
         return MATRIX
 
-    def evaluate_decision(self, category_l2=None):
+    def evaluate_decision(self, category_l2=None, seller_type="small"):
         """
         Decision Assistant Engine: Evaluate best product and criteria score for selected category.
+        seller_type: "small" for regular sellers, "large" for established/Official sellers.
         Calculates Multi-Criteria Scoring Formula:
             DSS_Score = (Demand_Score * 0.35) + (Gap_Score * 0.30) + (Viability_Score * 0.20) + (Trend_Score * 0.15)
         """
@@ -602,7 +615,12 @@ class DashboardGenerator:
         # 2. Gap & Low Official Domination Score (30%)
         official_count = sum(1 for p in tiki_prods if p.is_authentic)
         official_ratio = official_count / max(len(tiki_prods), 1)
-        gap_score = min(100.0, round((1.0 - official_ratio) * 100, 1))
+        if seller_type == "large":
+            # Large/established seller: rewards HIGH official domination (they can be Official themselves)
+            gap_score = min(100.0, round(official_ratio * 100, 1))
+        else:
+            # Small/regular seller: rewards LOW official domination (room for regular shops)
+            gap_score = min(100.0, round((1.0 - official_ratio) * 100, 1))
         
         # 3. Price & Winner Viability Score (20%)
         avg_rating = sum(p.rating or 0 for p in tiki_prods) / max(len(tiki_prods), 1)
@@ -621,19 +639,35 @@ class DashboardGenerator:
         )
         
         # Action recommendation decision badge
-        if total_score >= 65:
-            decision_action = "Invest (Nên đầu tư nhập ngay)"
-            badge_color = "green"
-        elif total_score >= 45:
-            decision_action = "Watch (Theo dõi & nhập thử)"
-            badge_color = "yellow"
+        if seller_type == "large":
+            if total_score >= 65:
+                decision_action = "MỞ RỘNG (Nên thêm ngành hàng này)"
+                badge_color = "green"
+            elif total_score >= 45:
+                decision_action = "THĂM DÒ (Nên nghiên cứu thêm)"
+                badge_color = "yellow"
+            else:
+                decision_action = "TRÁNH (Không phù hợp)"
+                badge_color = "red"
         else:
-            decision_action = "Divest (Tránh / Né)"
-            badge_color = "red"
+            if total_score >= 65:
+                decision_action = "Invest (Nên đầu tư nhập ngay)"
+                badge_color = "green"
+            elif total_score >= 45:
+                decision_action = "Watch (Theo dõi & nhập thử)"
+                badge_color = "yellow"
+            else:
+                decision_action = "Divest (Tránh / Né)"
+                badge_color = "red"
             
-        # Target Price (-15.2% below market benchmark)
+        # Target Price
         bench_price = best_prod.price if best_prod else 120000
-        target_price = int(bench_price * (1 - 0.152))
+        if seller_type == "large":
+            target_price = int(bench_price)  # Can match or premium
+            target_label = "Giá thị trường (có thể bán ngang bằng hoặc cao hơn nhờ thương hiệu)"
+        else:
+            target_price = int(bench_price * (1 - 0.152))
+            target_label = f"Nên đặt ~{target_price:,} đ (Rẻ hơn chính hãng 15.2%)"
         
         return {
             "category_l2": category_l2,
@@ -648,16 +682,16 @@ class DashboardGenerator:
                     "reason": f"Tổng sản lượng bán đạt {total_sold:,} chiếc trên {len(tiki_prods)} SKUs. Nhu cầu tiêu thụ rất cao."
                 },
                 {
-                    "name": "Khoảng trống Cạnh tranh (Low Official Domination)",
+                    "name": "Khoảng trống Cạnh tranh (Official Domination)" if seller_type == "large" else "Khoảng trống Cạnh tranh (Low Official Domination)",
                     "weight": 30,
                     "score": gap_score,
-                    "reason": f"Cửa hàng Official Store chỉ chiếm {official_ratio*100:.1f}% thị phần. Thị trường rộng mở cho shop thường."
+                    "reason": f"Official Store chiếm {official_ratio*100:.1f}% thị phần. {'Có thể tận dụng thương hiệu Official để chiếm lĩnh.' if seller_type == 'large' else 'Thị trường rộng mở cho shop thường.'}"
                 },
                 {
                     "name": "Khả thi Định giá & Ngưỡng Thắng (Price & Rating)",
                     "weight": 20,
                     "score": viability_score,
-                    "reason": f"Đánh giá TB ngách đạt {avg_rating:.2f}★. Khả năng định giá rẻ hơn chính hãng 15.2% thu lời cao."
+                    "reason": f"Đánh giá TB ngách đạt {avg_rating:.2f}★. {'Có thể định giá Premium nhờ thương hiệu mạnh.' if seller_type == 'large' else 'Khả năng định giá rẻ hơn chính hãng 15.2% thu lời cao.'}"
                 },
                 {
                     "name": "Xu hướng Tăng trưởng (5-Day Trend Momentum)",
@@ -670,9 +704,10 @@ class DashboardGenerator:
             "best_product": {
                 "product_id": best_prod.product_id if best_prod else "",
                 "product_name": best_prod.product_name if best_prod else "Combo Quần Lót Nam Boxer Thun Lạnh",
-                "thumbnail": best_prod.thumbnail if best_prod else "",
+                "thumbnail": _safe_thumb(best_prod.thumbnail) if best_prod else "",
                 "current_price": best_prod.price if best_prod else 120000,
                 "target_price": target_price,
+                "target_label": target_label,
                 "sold_count": best_prod.sold_count if best_prod else 0,
                 "rating": best_prod.rating if best_prod else 4.8,
                 "review_count": best_prod.review_count if best_prod else 150,
@@ -683,7 +718,7 @@ class DashboardGenerator:
                 {
                     "product_id": p.product_id,
                     "product_name": p.product_name or "",
-                    "thumbnail": p.thumbnail or "",
+                    "thumbnail": _safe_thumb(p.thumbnail),
                     "current_price": p.price or 0,
                     "sold_count": p.sold_count or 0,
                     "rating": p.rating or 0,
@@ -694,12 +729,16 @@ class DashboardGenerator:
                 for p in tiki_prods[:10]
             ],
             "action_plan": [
-                f"1. Định giá sản phẩm: Đặt giá bán ~{target_price:,} đ (Rẻ hơn chính hãng 15.2%).",
+                f"1. Định giá sản phẩm: {target_label}.",
                 "2. Đạt chuẩn chất lượng: Đảm bảo Rating ≥ 4.3★ và Giao hàng nhanh ≤ 2.6 ngày.",
                 "3. Mục tiêu Seeding: Gom đủ 14 reviews đầu tiên trong 14 ngày đầu ra mắt."
+            ] if seller_type == "small" else [
+                f"1. Định giá: {target_label} — có thể giữ giá ngang Official.",
+                "2. Tận dụng thương hiệu: Đẩy mạnh nhấn mạnh 'Chính hãng', 'Official Store' trong listing.",
+                "3. Chiến lược mở rộng: Dùng danh mục hiện có để cross-sell, bundle với sản phẩm mới."
             ]
         }
-
+ 
     def generate_category_insights(self):
         """
         Phân tích tăng trưởng, rủi ro, và lợi nhuận cho mỗi ngành hàng L2.

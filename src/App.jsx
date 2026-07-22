@@ -80,168 +80,10 @@ function ProductCardImage({ src, name, category, discount, platform }) {
   );
 }
 
-// ── ASG2 Q2–Q5 Answer sub-components ─────────────────────────────────────────
-function Q2Answer({ category }) {
-  const [data, setData] = useState(null);
-  useEffect(() => {
-    if (!category) return;
-    fetch(`${API_BASE_URL}/api/regression/insights?category=${encodeURIComponent(category)}`)
-      .then(r => r.json())
-      .then(d => setData(d))
-      .catch(() => setData(null));
-  }, [category]);
-  const prod = data?.product_predictions?.[0];
-  const opt = data?.optimal_prices?.find(o => o.category_l2 === category);
-  return (
-    <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-4">
-      <h4 className="text-[11px] font-bold font-mono text-purple-800 mb-2">Q2: Tối ưu giá bán (Giá × Chính hãng × Giao hàng → Doanh số)</h4>
-      {prod ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px]">
-          <div className="bg-white rounded-lg p-2 border border-purple-200">
-            <span className="text-gray-500 block">Dự báo sold</span>
-            <span className="font-mono font-bold text-purple-700">{prod.predicted_sold.toLocaleString()}</span>
-          </div>
-          <div className="bg-white rounded-lg p-2 border border-purple-200">
-            <span className="text-gray-500 block">Doanh thu dự báo</span>
-            <span className="font-mono font-bold text-purple-700">{Math.round(prod.predicted_revenue).toLocaleString()}đ</span>
-          </div>
-          <div className="bg-white rounded-lg p-2 border border-purple-200">
-            <span className="text-gray-500 block">Lợi thế chính hãng</span>
-            <span className="font-mono font-bold text-purple-700">{prod.authentic_advantage_x}×</span>
-          </div>
-          {opt && (
-            <div className="bg-white rounded-lg p-2 border border-amber-200">
-              <span className="text-gray-500 block">Giá tối ưu</span>
-              <span className="font-mono font-bold text-amber-700">{Math.round(opt.optimal_price).toLocaleString()}đ</span>
-            </div>
-          )}
-        </div>
-      ) : (
-        <p className="text-[10px] text-gray-500 italic">Đang tải dữ liệu hồi quy...</p>
-      )}
-      {opt && (
-        <div className="mt-2 text-[10px] text-gray-600 bg-amber-50 border border-amber-200 rounded-lg p-2">
-          Giá tối ưu cho ngách <strong>{opt.category_l2}</strong>: <strong>{Math.round(opt.optimal_price).toLocaleString()}đ</strong>
-          {" "}(hiện tại TB: {Math.round(opt.avg_price).toLocaleString()}đ, điều chỉnh {opt.price_change_pct}%)
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Q3Answer({ category }) {
-  const [data, setData] = useState(null);
-  useEffect(() => {
-    if (!category) return;
-    fetch(`${API_BASE_URL}/api/threshold/check?category=${encodeURIComponent(category)}`)
-      .then(r => r.json())
-      .then(d => setData(d))
-      .catch(() => setData(null));
-  }, [category]);
-  if (!data) return <div className="rounded-xl border border-cyan-200 bg-cyan-50/50 p-4"><p className="text-[10px] text-gray-500 italic">Đang tải...</p></div>;
-  return (
-    <div className="rounded-xl border border-cyan-200 bg-cyan-50/50 p-4">
-      <h4 className="text-[11px] font-bold font-mono text-cyan-800 mb-2">Q3: Ngưỡng thắng cho Regular Seller (giá -15.2%, rating ≥4.3, review ≥14, giao ≤2.6 ngày)</h4>
-      <div className="flex flex-wrap gap-3 text-[10px]">
-        <div className="bg-white rounded-lg p-2 border border-cyan-200 text-center min-w-[80px]">
-          <span className="text-xl font-bold font-mono text-cyan-700">{data.pass_all_count}</span>
-          <span className="text-gray-500 block">Đạt cả 4</span>
-        </div>
-        <div className="bg-white rounded-lg p-2 border border-cyan-200 text-center min-w-[80px]">
-          <span className="text-xl font-bold font-mono text-cyan-700">{data.pass_most_count}</span>
-          <span className="text-gray-500 block">Đạt ≥3/4</span>
-        </div>
-        <div className="bg-white rounded-lg p-2 border border-cyan-200 text-center min-w-[80px]">
-          <span className="text-xl font-bold font-mono text-cyan-700">{data.total_products}</span>
-          <span className="text-gray-500 block">Tổng SP</span>
-        </div>
-      </div>
-      {data.products?.slice(0, 5).map((p, i) => (
-        <div key={i} className="flex items-center gap-2 text-[9px] mt-1 p-1.5 rounded bg-white border border-cyan-100">
-          <span className={`flex-shrink-0 ${p.meets_all ? 'text-emerald-500' : p.meets_most ? 'text-yellow-500' : 'text-red-500'}`}>
-            {p.meets_all ? '✅' : p.meets_most ? '⚠️' : '❌'}
-          </span>
-          <span className="truncate flex-grow text-gray-700">{p.product_name?.slice(0, 40)}</span>
-          <span className="font-mono text-gray-400">{p.thresholds?.pass_rate}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Q4Answer({ category }) {
-  const [data, setData] = useState(null);
-  useEffect(() => {
-    if (!category) return;
-    fetch(`${API_BASE_URL}/api/dashboard/all`)
-      .then(r => r.json())
-      .then(d => {
-        const cat = d.gap_opportunity?.find(g => g.category_l2 === category);
-        setData(cat);
-      })
-      .catch(() => setData(null));
-  }, [category]);
-  if (!data) return <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-4"><p className="text-[10px] text-gray-500 italic">Đang tải...</p></div>;
-  return (
-    <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-4">
-      <h4 className="text-[11px] font-bold font-mono text-rose-800 mb-2">Q4: Portfolio — Cắt giảm / Theo dõi / Đầu tư</h4>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px]">
-        <div className="bg-white rounded-lg p-2 border border-rose-200">
-          <span className="text-gray-500 block">Portfolio</span>
-          <span className={`font-bold font-mono ${
-            data.portfolio_action === 'Invest' ? 'text-emerald-600' :
-            data.portfolio_action === 'Watch' ? 'text-amber-600' : 'text-red-600'
-          }`}>{data.portfolio_action}</span>
-        </div>
-        <div className="bg-white rounded-lg p-2 border border-rose-200">
-          <span className="text-gray-500 block">Priority</span>
-          <span className="font-bold font-mono text-gray-800">{data.priority_level}</span>
-        </div>
-        <div className="bg-white rounded-lg p-2 border border-rose-200">
-          <span className="text-gray-500 block">Rev/SKU</span>
-          <span className="font-mono font-bold text-gray-800">{Math.round(data.rev_per_sku / 1e6)}tr</span>
-        </div>
-        <div className="bg-white rounded-lg p-2 border border-rose-200">
-          <span className="text-gray-500 block">Rating gap</span>
-          <span className={`font-mono font-bold ${data.rating_gap >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-            {data.rating_gap >= 0 ? '+' : ''}{data.rating_gap}
-          </span>
-        </div>
-      </div>
-      <p className="mt-2 text-[10px] text-gray-600 bg-rose-50 border border-rose-200 rounded-lg p-2">{data.portfolio_reason}</p>
-    </div>
-  );
-}
-
-function Q5Answer() {
-  return (
-    <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-4">
-      <h4 className="text-[11px] font-bold font-mono text-violet-800 mb-2">Q5: Tái cân bằng vốn khi ngân sách thay đổi</h4>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[10px]">
-        <div className="bg-white rounded-lg p-2 border border-violet-200">
-          <span className="text-gray-500 block font-semibold">Kịch bản cơ bản</span>
-          <span className="text-gray-700">Phân bổ vốn theo tỉ lệ ROI hiện tại giữa các ngách</span>
-        </div>
-        <div className="bg-white rounded-lg p-2 border border-amber-200">
-          <span className="text-gray-500 block font-semibold">−20% ngân sách</span>
-          <span className="text-gray-700">Cắt giảm ngách Divest trước, giữ Invest, Watch thu hẹp</span>
-        </div>
-        <div className="bg-white rounded-lg p-2 border border-emerald-200">
-          <span className="text-gray-500 block font-semibold">+30% ngân sách</span>
-          <span className="text-gray-700">Đẩy mạnh Invest, mở rộng thử nghiệm Watch tiềm năng</span>
-        </div>
-      </div>
-      <div className="mt-2 text-[10px] flex items-center gap-2 text-violet-700 bg-violet-100 border border-violet-300 rounded-lg p-2">
-        <Zap className="w-3.5 h-3.5 flex-shrink-0" />
-        Chi tiết: mở tab <strong>What-If Scenarios</strong> để xem biểu đồ phân bổ và so sánh 4 kịch bản.
-      </div>
-    </div>
-  );
-}
-
 // ── Decision Assistant Modal Component ──────────────────────────────────────
 function DecisionAssistantModal({ isOpen, onClose, allCategories = [] }) {
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [sellerType, setSellerType] = useState('small');
   const [evalData, setEvalData] = useState(null);
   const [loadingEval, setLoadingEval] = useState(false);
   const [evalError, setEvalError] = useState(null);
@@ -282,12 +124,13 @@ function DecisionAssistantModal({ isOpen, onClose, allCategories = [] }) {
     return sorted;
   }, [evalData, sortCompareBy, sortAsc]);
 
-  const handleEvaluate = async (category) => {
+  const handleEvaluate = async (category, st) => {
     const catToUse = category || selectedCategory;
+    const seller = st || sellerType;
     try {
       setLoadingEval(true);
       setEvalError(null);
-      const res = await fetch(`${API_BASE_URL}/api/decision/evaluate?category=${encodeURIComponent(catToUse)}`);
+      const res = await fetch(`${API_BASE_URL}/api/decision/evaluate?category=${encodeURIComponent(catToUse)}&seller_type=${seller}`);
       if (!res.ok) throw new Error('Không thể tải kết quả chẩn đoán');
       const data = await res.json();
       setEvalData(data);
@@ -300,9 +143,9 @@ function DecisionAssistantModal({ isOpen, onClose, allCategories = [] }) {
 
   useEffect(() => {
     if (isOpen && selectedCategory) {
-      handleEvaluate(selectedCategory);
+      handleEvaluate(selectedCategory, sellerType);
     }
-  }, [isOpen, selectedCategory]);
+  }, [isOpen, selectedCategory, sellerType]);
 
   if (!isOpen) return null;
 
@@ -333,6 +176,24 @@ function DecisionAssistantModal({ isOpen, onClose, allCategories = [] }) {
               <p className="text-gray-300 text-xs mt-0.5">
                 Chọn ngách hàng ➔ Mô hình phân tích 4 tiêu chí có trọng số ➔ Đưa ra Sản phẩm Tốt nhất & Lý do minh bạch
               </p>
+              <div className="flex gap-2 mt-2">
+                <button onClick={() => { setSellerType('small'); handleEvaluate(selectedCategory, 'small'); }}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold font-mono uppercase transition border ${
+                    sellerType === 'small'
+                      ? 'bg-emerald-500 text-white border-emerald-400 shadow-lg shadow-emerald-500/30'
+                      : 'bg-white/10 text-white/70 border-white/20 hover:bg-white/20'
+                  }`}>
+                  🛒 Seller nhỏ
+                </button>
+                <button onClick={() => { setSellerType('large'); handleEvaluate(selectedCategory, 'large'); }}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold font-mono uppercase transition border ${
+                    sellerType === 'large'
+                      ? 'bg-amber-500 text-white border-amber-400 shadow-lg shadow-amber-500/30'
+                      : 'bg-white/10 text-white/70 border-white/20 hover:bg-white/20'
+                  }`}>
+                  🏢 Seller lớn
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -514,7 +375,7 @@ function DecisionAssistantModal({ isOpen, onClose, allCategories = [] }) {
                       </div>
 
                       <div className="p-2 bg-emerald-100 rounded-lg border border-emerald-200">
-                        <span className="text-emerald-800 font-bold block text-[10px]">👉 GIÁ NÊN ĐẶT (-15.2% Rẻ hơn Chính Hãng)</span>
+                        <span className="text-emerald-800 font-bold block text-[10px]">👉 {evalData.best_product.target_label || `GIÁ NÊN ĐẶT (-15.2% Rẻ hơn Chính Hãng)`}</span>
                         <span className="font-mono text-base font-extrabold text-emerald-700">
                           {formatCurrency(evalData.best_product.target_price)}
                         </span>
@@ -687,27 +548,6 @@ function DecisionAssistantModal({ isOpen, onClose, allCategories = [] }) {
             </>
           )}
         </div>
-
-        {/* Q2–Q5 ASG2 Answer Sections */}
-        {evalData && !loadingEval && (
-          <div className="px-6 pb-6 space-y-4 border-t border-gray-200 pt-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-800 flex items-center gap-1.5">
-              <Zap className="w-4 h-4 text-amber-500" /> Trả lời 5 câu hỏi ra quyết định ASG2
-            </h3>
-
-            {/* Q2: Regression Predictor (simplified inline) */}
-            <Q2Answer category={selectedCategory} />
-
-            {/* Q3: Threshold Check */}
-            <Q3Answer category={selectedCategory} />
-
-            {/* Q4: Portfolio Decision */}
-            <Q4Answer category={selectedCategory} />
-
-            {/* Q5: What-If Summary */}
-            <Q5Answer />
-          </div>
-        )}
 
         {/* Modal Footer */}
         <div className="p-4 bg-gray-50 border-t border-gray-200 rounded-b-3xl flex items-center justify-between">
@@ -1180,33 +1020,6 @@ export default function App() {
 
         </section>
 
-        {/* 5 ASG2 Questions Navigation Hub */}
-        <section className="grid grid-cols-5 gap-2 px-2 pt-2">
-          {[
-            { q: 'Q1', label: 'Cơ hội & Rào cản', desc: 'Rev/SKU, thị phần, Official dom', tab: 'gaps', color: 'emerald' },
-            { q: 'Q2', label: 'Tối ưu giá bán', desc: 'Giá × Chính hãng × Giao hàng → Doanh số', tab: 'forecast', color: 'teal' },
-            { q: 'Q3', label: 'Ngưỡng thắng Regular', desc: 'Giá -15.2%, Rating≥4.3, Review≥14, Giao≤2.6 ngày', tab: 'recommendations', color: 'cyan' },
-            { q: 'Q4', label: 'Cắt giảm / Theo dõi', desc: 'Portfolio Matrix: Divest-Watch-Invest', tab: 'gaps', color: 'rose' },
-            { q: 'Q5', label: 'Tái cân bằng vốn', desc: 'What-If: -20% ngân sách, +30%, phí sàn', tab: 'whatif', color: 'violet' },
-          ].map((item, i) => {
-            const colors = {
-              emerald: 'border-emerald-200 hover:bg-emerald-50 text-emerald-700',
-              teal: 'border-teal-200 hover:bg-teal-50 text-teal-700',
-              cyan: 'border-cyan-200 hover:bg-cyan-50 text-cyan-700',
-              rose: 'border-rose-200 hover:bg-rose-50 text-rose-700',
-              violet: 'border-violet-200 hover:bg-violet-50 text-violet-700',
-            };
-            return (
-              <button key={i} onClick={() => setActiveTab(item.tab)}
-                className={`text-left p-2.5 rounded-xl border bg-white ${colors[item.color]} transition-all shadow-sm hover:shadow`}>
-                <div className="text-[9px] font-bold font-mono opacity-60">{item.q}</div>
-                <div className="text-[11px] font-bold leading-tight mt-0.5">{item.label}</div>
-                <div className="text-[8px] opacity-70 mt-0.5 leading-tight line-clamp-2">{item.desc}</div>
-              </button>
-            );
-          })}
-        </section>
-
         {/* TABS NAVIGATION */}
         <section className="flex overflow-x-auto border-b border-emerald-100 bg-white/50">
           <button
@@ -1310,6 +1123,7 @@ export default function App() {
         {activeTab === 'top-tiki' ? (
           <TopTikiProducts 
             selectedL1={selectedL1}
+            selectedL2={selectedL2}
             searchQuery={searchQuery}
             priceRange={priceRange}
             minRating={minRating}
@@ -1324,6 +1138,7 @@ export default function App() {
           <ProductDataTab 
             platform="Tiki" 
             selectedL1={selectedL1}
+            selectedL2={selectedL2}
             searchQuery={searchQuery}
             priceRange={priceRange}
             minRating={minRating}
@@ -1332,6 +1147,7 @@ export default function App() {
           <ProductDataTab 
             platform="Lazada"
             selectedL1={selectedL1}
+            selectedL2={selectedL2}
             searchQuery={searchQuery}
             priceRange={priceRange}
             minRating={minRating}
@@ -1340,6 +1156,7 @@ export default function App() {
           <ProductDataTab 
             platform="Shopee"
             selectedL1={selectedL1}
+            selectedL2={selectedL2}
             searchQuery={searchQuery}
             priceRange={priceRange}
             minRating={minRating}

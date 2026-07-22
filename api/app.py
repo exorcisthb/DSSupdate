@@ -10,6 +10,8 @@ import os
 import sys
 from datetime import datetime
 import pandas as pd
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -35,6 +37,22 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 def allowed_file(filename):
     """Check if file extension is allowed."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def safe_thumbnail(val):
+    """Normalize thumbnail: return empty string for None/NaN/'nan'."""
+    if val is None:
+        return ""
+    if isinstance(val, str):
+        val = val.strip()
+        if val.lower() == 'nan' or val == '' or len(val) < 3:
+            return ""
+        return val
+    if isinstance(val, float):
+        import math
+        if math.isnan(val):
+            return ""
+    return str(val) if val else ""
 
 
 @app.route('/health', methods=['GET'])
@@ -244,17 +262,21 @@ def evaluate_decision_endpoint():
     Evaluate best product and decision score for selected category.
     Query params / JSON body:
         - category: category_l2 name (e.g., 'Đồ lót nam', 'Quần short nam')
+        - seller_type: 'small' (default) or 'large'
     """
     try:
         category_l2 = request.args.get('category')
         if not category_l2 and request.is_json and request.get_json():
             category_l2 = request.json.get('category')
+        seller_type = request.args.get('seller_type', 'small')
+        if seller_type not in ('small', 'large'):
+            seller_type = 'small'
             
         sys.path.append(os.path.dirname(os.path.abspath(__file__)))
         from dashboard_generator import DashboardGenerator
         
         generator = DashboardGenerator()
-        res = generator.evaluate_decision(category_l2)
+        res = generator.evaluate_decision(category_l2, seller_type)
         return jsonify(res)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -484,7 +506,7 @@ def get_tiki_products():
             'discount_rate': float(p.discount_rate),
             'is_authentic': bool(p.is_authentic),
             'url': p.url,
-            'thumbnail': p.thumbnail,
+            'thumbnail': safe_thumbnail(p.thumbnail),
             'last_updated': p.last_updated.isoformat() if p.last_updated else None
         } for p in products]
         
@@ -565,7 +587,7 @@ def get_top_tiki_products():
             'discount_rate': float(p.discount_rate),
             'is_authentic': bool(p.is_authentic),
             'url': p.url,
-            'thumbnail': p.thumbnail,
+            'thumbnail': safe_thumbnail(p.thumbnail),
             'badge': _get_product_badge(p, metric)
         } for p in products]
         
@@ -660,7 +682,7 @@ def get_external_products():
             'is_authentic': bool(p.is_authentic),
             'origin': p.origin,
             'url': p.url,
-            'thumbnail': p.thumbnail,
+            'thumbnail': safe_thumbnail(p.thumbnail),
             'date_collected': p.date_collected.isoformat() if p.date_collected else None
         } for p in products]
         
@@ -700,9 +722,94 @@ def get_category_insights():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/ingest/status', methods=['GET'])
+def ingest_status():
+    """Get last ingest time and count."""
+    from database.schema import IngestLog
+    db = SessionLocal()
+    last = db.query(IngestLog).order_by(IngestLog.ingested_at.desc()).first()
+    total = db.query(IngestLog).count()
+    db.close()
+    if last:
+        return jsonify({
+            "last_ingest_at": last.ingested_at.isoformat() if last.ingested_at else None,
+            "last_source": last.source,
+            "last_status": last.status,
+            "total_logs": total
+        })
+    return jsonify({"last_ingest_at": None, "total_logs": total})
+
+
+def auto_ingest_from_github():
+    """Fetch and ingest latest data from GitHub. Called by scheduler."""
+    try:
+        print("[SCHEDULER] Auto-ingesting from GitHub...")
+        db = SessionLocal()
+        from data_fetcher.github_fetcher import GitHubDataFetcher
+        fetcher = GitHubDataFetcher()
+        clean_df, historical_df, changes_df = fetcher.fetch_latest_data()
+        if clean_df is not None:
+            processor = DataProcessor(db)
+            processor.ingest_tiki_clean(clean_df)
+            print(f"[SCHEDULER] Ingested {len(clean_df)} clean products")
+        if historical_df is not None:
+            processor = DataProcessor(db)
+            processor.ingest_tiki_historical(historical_df)
+            print(f"[SCHEDULER] Ingested {len(historical_df)} historical records")
+        if changes_df is not None:
+            processor = DataProcessor(db)
+            processor.ingest_tiki_changes(changes_df)
+            print(f"[SCHEDULER] Ingested {len(changes_df)} change records")
+        committer = fetcher.get_latest_commit_info()
+        sha = committer.get('sha', 'scheduler') if committer else 'scheduler'
+        from data_fetcher.data_processor import DataProcessor as DP
+        DP(db).log_ingest('github', sha, 'tiki', 
+                          len(clean_df) if clean_df is not None else 0,
+                          'success')
+        db.close()
+        print("[SCHEDULER] Auto-ingest completed successfully")
+    except Exception as e:
+        print(f"[SCHEDULER] Auto-ingest failed: {e}")
+
+
+def start_scheduler():
+    """Start background scheduler for daily ingestion."""
+    scheduler = BackgroundScheduler()
+    # Schedule daily at 8:30 AM VN (1:30 UTC)
+    scheduler.add_job(
+        auto_ingest_from_github,
+        CronTrigger(hour=1, minute=30, timezone='UTC'),
+        id='daily_github_ingest',
+        replace_existing=True
+    )
+    scheduler.start()
+    print("[SCHEDULER] Daily ingest scheduled at 8:30 AM VN")
+    return scheduler
+
+
 if __name__ == '__main__':
     # Initialize database on startup
     init_database()
+    
+    # Start scheduler for daily auto-ingest
+    scheduler = start_scheduler()
+    
+    # Check if database is empty, auto-fetch on first run
+    db = SessionLocal()
+    from database.schema import ProductTiki
+    count = db.query(ProductTiki).count()
+    db.close()
+    if count == 0:
+        print("[STARTUP] Database empty, running initial ingest...")
+        auto_ingest_from_github()
+    else:
+        print(f"[STARTUP] Database has {count} products, skipping initial ingest")
+        # Still try to fetch latest data in background
+        print("[STARTUP] Checking GitHub for newer data...")
+        try:
+            auto_ingest_from_github()
+        except Exception as e:
+            print(f"[STARTUP] Background ingest failed (non-fatal): {e}")
     
     host = os.getenv('FLASK_HOST', '127.0.0.1')
     port = int(os.getenv('FLASK_PORT', 5000))
