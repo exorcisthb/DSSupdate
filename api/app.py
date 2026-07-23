@@ -748,27 +748,28 @@ def auto_ingest_from_github():
         from data_fetcher.github_fetcher import GitHubDataFetcher
         fetcher = GitHubDataFetcher()
         clean_df, historical_df, changes_df = fetcher.fetch_latest_data()
+        sid = f"scheduler_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
         if clean_df is not None:
             processor = DataProcessor(db)
-            processor.ingest_tiki_clean(clean_df)
+            processor.ingest_tiki_clean(clean_df, sid)
             print(f"[SCHEDULER] Ingested {len(clean_df)} clean products")
         if historical_df is not None:
             processor = DataProcessor(db)
-            processor.ingest_tiki_historical(historical_df)
+            processor.ingest_tiki_historical(historical_df, sid)
             print(f"[SCHEDULER] Ingested {len(historical_df)} historical records")
         if changes_df is not None:
             processor = DataProcessor(db)
-            processor.ingest_tiki_changes(changes_df)
+            processor.ingest_tiki_changes(changes_df, sid)
             print(f"[SCHEDULER] Ingested {len(changes_df)} change records")
-        committer = fetcher.get_latest_commit_info()
-        sha = committer.get('sha', 'scheduler') if committer else 'scheduler'
         from data_fetcher.data_processor import DataProcessor as DP
-        DP(db).log_ingest('github', sha, 'tiki', 
+        DP(db).log_ingest('github', sid, 'tiki', 
                           len(clean_df) if clean_df is not None else 0,
                           'success')
         db.close()
         print("[SCHEDULER] Auto-ingest completed successfully")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"[SCHEDULER] Auto-ingest failed: {e}")
 
 
