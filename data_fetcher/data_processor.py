@@ -8,6 +8,9 @@ from datetime import datetime
 from typing import Optional, List, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
+import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from io import BytesIO
 
 import sys
 import os
@@ -63,9 +66,40 @@ class DataProcessor:
         self.db.add(log_entry)
         self.db.commit()
     
+    @staticmethod
+    def _fetch_tiki_thumbnails(product_ids, max_workers=10):
+        """Fetch thumbnails from Tiki API in parallel."""
+        session = requests.Session()
+        session.headers.update({'User-Agent': 'Mozilla/5.0'})
+        thumb_map = {}
+        def fetch(pid):
+            try:
+                r = session.get(f'https://tiki.vn/api/v2/products/{pid}', timeout=10)
+                if r.status_code == 200:
+                    data = r.json()
+                    thumb = data.get('thumbnail_url', '')
+                    return pid, thumb if thumb else None
+            except:
+                pass
+            return pid, None
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            fut = {pool.submit(fetch, pid): pid for pid in product_ids}
+            for f in as_completed(fut):
+                pid, thumb = f.result()
+                if thumb:
+                    thumb_map[pid] = thumb
+        print(f"  ✅ Fetched {len(thumb_map)}/{len(product_ids)} thumbnails from Tiki API")
+        return thumb_map
+
     def ingest_tiki_clean(self, df: pd.DataFrame, source_identifier: str) -> int:
         """Ingest Tiki clean data (current snapshot)."""
         print(f"📊 Processing {len(df)} Tiki products...")
+
+        # Preserve existing thumbnails before clearing
+        existing_thumbs = {
+            p[0]: p[1] for p in self.db.query(ProductTiki.product_id, ProductTiki.thumbnail).all()
+            if p[1] and not p[1].startswith('https://salt.tikicdn.com/ts/product/')
+        }
 
         # Clear existing data
         self.db.query(ProductTiki).delete()
@@ -81,6 +115,34 @@ class DataProcessor:
         if file_date is None:
             file_date = datetime.utcnow()
 
+        # Check if df has real thumbnail data; if not, fetch from Tiki API
+        has_thumb_col = 'thumbnail' in df.columns
+        if has_thumb_col:
+            sample_thumb = df['thumbnail'].dropna().apply(str).str.strip()
+            sample_thumb = sample_thumb[~sample_thumb.str.lower().isin(['nan', '', 'none'])]
+            has_thumb_col = len(sample_thumb) > 0
+        thumb_map = {}
+        if has_thumb_col:
+            for _, row in df.iterrows():
+                pid = str(row.get('product_id', '')).strip()
+                if pid and pid not in ('', 'nan'):
+                    t = str(row.get('thumbnail', ''))
+                    if t and t.lower() not in ('nan', '', 'none'):
+                        thumb_map[pid] = t
+        else:
+            all_pids = [str(row.get('product_id', '')).strip()
+                        for _, row in df.iterrows()
+                        if str(row.get('product_id', '')).strip() not in ('', 'nan')]
+            # Use existing thumbnails from DB as cache (skip API for known products)
+            need_fetch = [pid for pid in all_pids if pid not in existing_thumbs]
+            thumb_map = {pid: existing_thumbs[pid] for pid in all_pids if pid in existing_thumbs}
+            if need_fetch:
+                print(f"  ⚠️  No thumbnail column — fetching {len(need_fetch)}/{len(all_pids)} from Tiki API...")
+                fetched = self._fetch_tiki_thumbnails(need_fetch)
+                thumb_map.update(fetched)
+            else:
+                print(f"  ✅ Using {len(thumb_map)} cached thumbnails from previous run")
+
         records_added = 0
         for _, row in df.iterrows():
             try:
@@ -90,10 +152,7 @@ class DataProcessor:
 
                 # Support both old and new column names from the scraper
                 url = str(row.get('url') or row.get('product_link') or '')
-                # Build thumbnail URL from product_id using Tiki CDN pattern
-                thumbnail = str(row.get('thumbnail') or '')
-                if not thumbnail and pid:
-                    thumbnail = f"https://salt.tikicdn.com/ts/product/{pid[:2]}/{pid[2:4]}/{pid}/{pid}.jpg"
+                thumbnail = thumb_map.get(pid, '')
 
                 # Support both discount_rate and discount_percent column names
                 discount = row.get('discount_rate') or row.get('discount_percent') or 0

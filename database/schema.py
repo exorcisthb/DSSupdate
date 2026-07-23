@@ -23,7 +23,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./dss_data.db")
 engine = create_engine(
     DATABASE_URL, 
     echo=False,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+    connect_args={"check_same_thread": False, "timeout": 30} if "sqlite" in DATABASE_URL else {}
 )
 
 # Enable foreign key constraints for SQLite
@@ -34,6 +34,8 @@ if "sqlite" in DATABASE_URL:
     def set_sqlite_pragma(dbapi_conn, connection_record):
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
         cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
