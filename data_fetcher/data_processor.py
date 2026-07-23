@@ -34,6 +34,18 @@ class DataProcessor:
             )
         ).first()
         return existing is not None
+
+    def delete_ingest_log(self, source: str, identifier: str):
+        """Delete ingest log entry (used for force re-ingest)."""
+        existing = self.db.query(IngestLog).filter(
+            and_(
+                IngestLog.source == source,
+                IngestLog.source_identifier == identifier
+            )
+        ).first()
+        if existing:
+            self.db.delete(existing)
+            self.db.commit()
     
     def log_ingest(self, source: str, identifier: str, platform: str,
                    records_count: int, status: str = "success", 
@@ -57,6 +69,17 @@ class DataProcessor:
 
         # Clear existing data
         self.db.query(ProductTiki).delete()
+
+        # Parse date_collected from file (clean data has this column)
+        file_date = None
+        if 'date_collected' in df.columns:
+            try:
+                sample = df['date_collected'].dropna().iloc[0]
+                file_date = pd.to_datetime(sample) if isinstance(sample, str) else sample
+            except:
+                pass
+        if file_date is None:
+            file_date = datetime.utcnow()
 
         records_added = 0
         for _, row in df.iterrows():
@@ -118,6 +141,34 @@ class DataProcessor:
                     delivery_estimate_days=del_days_val
                 )
                 self.db.add(product)
+
+                # Also write to ProductTikiHistory with today's date so dashboard shows latest day
+                existing = self.db.query(ProductTikiHistory).filter(
+                    and_(
+                        ProductTikiHistory.product_id == pid,
+                        ProductTikiHistory.date_collected == file_date
+                    )
+                ).first()
+                if not existing:
+                    history = ProductTikiHistory(
+                        product_id=pid,
+                        product_name=str(row.get('product_name', '')),
+                        category_l1=str(row.get('category_l1', '')),
+                        category_l2=str(row.get('category_l2', '')),
+                        price=safe_float(row.get('price')),
+                        sold_count=safe_int(row.get('sold_count')),
+                        estimated_revenue=safe_float(row.get('estimated_revenue')),
+                        rating=safe_float(row.get('rating')),
+                        review_count=safe_int(row.get('review_count')),
+                        discount_rate=discount_val,
+                        url=url,
+                        thumbnail=thumbnail,
+                        is_authentic=is_auth_val,
+                        delivery_estimate_days=del_days_val,
+                        date_collected=file_date
+                    )
+                    self.db.add(history)
+
                 records_added += 1
             except Exception as e:
                 print(f"⚠️  Error processing product {row.get('product_id')}: {e}")

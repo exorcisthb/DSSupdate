@@ -93,6 +93,8 @@ def ingest_from_github(processor: DataProcessor, force: bool = False):
             print(f"⚠️  Data from commit {commit_info['sha'][:8]} already ingested")
             print("   Use --force to re-ingest")
             return
+        elif force and processor.check_already_ingested('github', source_identifier):
+            processor.delete_ingest_log('github', source_identifier)
     else:
         source_identifier = f"github_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
