@@ -856,6 +856,16 @@ class DashboardGenerator:
                 decision_icon = "🔴"
                 decision_detail = "Suy giảm hoặc rủi ro cao — cân nhắc thoát hàng"
 
+            # ── ASG2 Q1 Opportunity Score (cho Seller nhỏ: ưu tiên dom thấp) ──
+            sold_share = tiki_sold / max(total_tiki_sold, 1)
+            rev_sku_norm = min(1.0, rev_per_sku / max_rev_per_sku) if max_rev_per_sku > 0 else 0
+            dom_advantage = 1.0 - official_dom
+            opportunity_score = (
+                0.4 * rev_sku_norm
+                + 0.3 * sold_share
+                + 0.3 * dom_advantage
+            ) * 100
+
             insights.append({
                 "category_l1": cat_l1,
                 "category_l2": cat_l2,
@@ -872,6 +882,10 @@ class DashboardGenerator:
                 "risk_level": risk_level,
                 "decision": decision,
                 "decision_detail": decision_detail,
+                "opportunity_score": round(opportunity_score, 1),
+                "sold_share_pct": round(sold_share * 100, 2),
+                "rev_sku_norm_pct": round(rev_sku_norm * 100, 1),
+                "dom_advantage_pct": round(dom_advantage * 100, 1),
             })
 
         insights.sort(key=lambda x: x["growth_rate_pct"], reverse=True)

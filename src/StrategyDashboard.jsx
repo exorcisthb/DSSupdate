@@ -252,6 +252,9 @@ export default function StrategyDashboard() {
                 <th className="py-3 px-3 text-right cursor-pointer select-none hover:text-indigo-700" onClick={() => toggleSort('rev_per_sku')}>
                   Rev/SKU <SortIcon field="rev_per_sku" />
                 </th>
+                <th className="py-3 px-3 text-right cursor-pointer select-none hover:text-indigo-700" onClick={() => toggleSort('opportunity_score')}>
+                  Cơ hội <SortIcon field="opportunity_score" />
+                </th>
                 <th className="py-3 px-3 text-center">Số lượng bán</th>
                 <th className="py-3 px-4 text-center">Quyết định</th>
               </tr>
@@ -286,6 +289,17 @@ export default function StrategyDashboard() {
                     <td className="py-2.5 px-3 text-right font-mono text-gray-700">
                       {formatCurrency(item.rev_per_sku)}
                     </td>
+                    <td className="py-2.5 px-3 text-right">
+                      <span className={`font-mono font-bold ${
+                        item.opportunity_score >= 60 ? 'text-emerald-600' :
+                        item.opportunity_score >= 35 ? 'text-amber-600' : 'text-gray-400'
+                      }`}>
+                        {item.opportunity_score.toFixed(1)}
+                      </span>
+                      <span className="text-[9px] text-gray-400 block" title="Rev/SKU norm | Sold share | Dom advantage">
+                        {item.rev_sku_norm_pct?.toFixed(0) || '0'}% / {item.sold_share_pct?.toFixed(1) || '0'}% / {item.dom_advantage_pct?.toFixed(0) || '0'}%
+                      </span>
+                    </td>
                     <td className="py-2.5 px-3 text-right font-mono text-gray-600">
                       {item.tiki_sold.toLocaleString('vi-VN')}
                     </td>
@@ -313,6 +327,21 @@ export default function StrategyDashboard() {
             • <strong>Rủi ro</strong> = Điểm tổng hợp từ (rating thấp: 0–40đ) + (giao hàng chậm: 0–30đ) + (thống trị chính hãng: 0–20đ) + (giảm giá sâu: 0–10đ). Thang 0–100.<br />
             • <strong>Lợi nhuận ước tính</strong> = Rev/SKU × (1 − tỉ lệ giảm giá). Chưa có dữ liệu chi phí thực tế (COGS, phí vận hành).<br />
             • <strong>Tỉ lệ hoàn hàng</strong> hiện chưa có trong cơ sở dữ liệu. Rủi ro được ước lượng qua các chỉ số proxy.
+          </div>
+        </div>
+      </div>
+
+      {/* Q1 Opportunity Score Explanation */}
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+        <div className="flex items-start gap-2">
+          <Award className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+          <div className="text-[10px] text-emerald-800 leading-relaxed">
+            <strong>OPPORTUNITY SCORE (ASG2 Q1) — Cơ hội cho Seller nhỏ</strong><br />
+            <strong>Cơ hội</strong> = 0.4 × RevSKU_norm + 0.3 × SoldShare + 0.3 × (1 − OfficialDom).<br />
+            • <strong>RevSKU_norm</strong> (% đầu tiên): Doanh thu/SKU đã chuẩn hóa (cao = ngách có doanh thu tốt).<br />
+            • <strong>SoldShare</strong> (% giữa): Thị phần sản lượng bán của ngách (cao = nhu cầu lớn).<br />
+            • <strong>DomAdvantage</strong> (% cuối): (1 − OfficialDom) — ngách ít bị áp đảo bởi hàng chính hãng thì seller nhỏ dễ cạnh tranh.<br />
+            <strong>Cách xem:</strong> Sắp xếp bảng theo cột "Cơ hội" giảm dần → ngách đầu bảng là tốt nhất cho seller nhỏ.
           </div>
         </div>
       </div>
