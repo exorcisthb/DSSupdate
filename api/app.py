@@ -10,6 +10,7 @@ import os
 import sys
 from datetime import datetime, timezone
 import pandas as pd
+import threading
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -801,16 +802,11 @@ if __name__ == '__main__':
     count = db.query(ProductTiki).count()
     db.close()
     if count == 0:
-        print("[STARTUP] Database empty, running initial ingest...")
-        auto_ingest_from_github()
+        print("[STARTUP] Database empty, running initial ingest in background...")
+        threading.Thread(target=auto_ingest_from_github, daemon=True).start()
     else:
-        print(f"[STARTUP] Database has {count} products, skipping initial ingest")
-        # Still try to fetch latest data in background
-        print("[STARTUP] Checking GitHub for newer data...")
-        try:
-            auto_ingest_from_github()
-        except Exception as e:
-            print(f"[STARTUP] Background ingest failed (non-fatal): {e}")
+        print(f"[STARTUP] Database has {count} products, checking GitHub in background...")
+        threading.Thread(target=auto_ingest_from_github, daemon=True).start()
     
     host = os.getenv('FLASK_HOST', '127.0.0.1')
     port = int(os.getenv('FLASK_PORT', 5000))
