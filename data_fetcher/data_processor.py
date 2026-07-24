@@ -8,13 +8,28 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
+from sqlalchemy.exc import OperationalError
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
+import time
 
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+def _db_retry(fn, max_attempts=5, base_delay=1):
+    """Retry DB operation on OperationalError (locked) with exponential backoff."""
+    for attempt in range(max_attempts):
+        try:
+            return fn()
+        except OperationalError as e:
+            if 'locked' in str(e) and attempt < max_attempts - 1:
+                delay = base_delay * (2 ** attempt)
+                print(f"  ⏳ DB locked, retrying in {delay}s (attempt {attempt+1}/{max_attempts})...")
+                time.sleep(delay)
+                continue
+            raise
 
 from database.schema import (
     ProductTiki, ProductTikiHistory, ProductChange, 
@@ -48,7 +63,7 @@ class DataProcessor:
         ).first()
         if existing:
             self.db.delete(existing)
-            self.db.commit()
+            _db_retry(lambda: self.db.commit())
     
     def log_ingest(self, source: str, identifier: str, platform: str,
                    records_count: int, status: str = "success", 
@@ -64,7 +79,7 @@ class DataProcessor:
             ingested_at=datetime.now(timezone.utc)
         )
         self.db.add(log_entry)
-        self.db.commit()
+        _db_retry(lambda: self.db.commit())
     
     @staticmethod
     def _fetch_tiki_thumbnails(product_ids, max_workers=10):
@@ -96,13 +111,15 @@ class DataProcessor:
         print(f"📊 Processing {len(df)} Tiki products...")
 
         # Preserve existing thumbnails before clearing
-        existing_thumbs = {
-            p[0]: p[1] for p in self.db.query(ProductTiki.product_id, ProductTiki.thumbnail).all()
-            if p[1] and not p[1].startswith('https://salt.tikicdn.com/ts/product/')
-        }
+        existing_thumbs = _db_retry(
+            lambda: {
+                p[0]: p[1] for p in self.db.query(ProductTiki.product_id, ProductTiki.thumbnail).all()
+                if p[1] and not p[1].startswith('https://salt.tikicdn.com/ts/product/')
+            }
+        )
 
         # Clear existing data
-        self.db.query(ProductTiki).delete()
+        _db_retry(lambda: self.db.query(ProductTiki).delete())
 
         # Parse date_collected from file (clean data has this column)
         file_date = None
@@ -233,7 +250,7 @@ class DataProcessor:
                 print(f"⚠️  Error processing product {row.get('product_id')}: {e}")
                 continue
 
-        self.db.commit()
+        _db_retry(lambda: self.db.commit())
         print(f"✅ Ingested {records_added} Tiki products")
         return records_added
     
@@ -322,7 +339,7 @@ class DataProcessor:
                 print(f"⚠️ Error processing historical record: {e}")
                 continue
 
-        self.db.commit()
+        _db_retry(lambda: self.db.commit())
         print(f"✅ Ingested {records_added} historical records")
         return records_added
     
@@ -358,7 +375,7 @@ class DataProcessor:
                 print(f"⚠️  Error processing change record: {e}")
                 continue
         
-        self.db.commit()
+        _db_retry(lambda: self.db.commit())
         print(f"✅ Ingested {records_added} change records")
         return records_added
     
