@@ -8,7 +8,7 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 import pandas as pd
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -60,7 +60,7 @@ def health_check():
     """Health check endpoint."""
     return jsonify({
         'status': 'healthy',
-        'timestamp': datetime.utcnow().isoformat()
+        'timestamp': datetime.now(timezone.utc).isoformat()
     })
 
 
@@ -748,7 +748,7 @@ def auto_ingest_from_github():
         from data_fetcher.github_fetcher import GitHubDataFetcher
         fetcher = GitHubDataFetcher()
         clean_df, historical_df, changes_df = fetcher.fetch_latest_data()
-        sid = f"scheduler_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+        sid = f"scheduler_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         if clean_df is not None:
             processor = DataProcessor(db)
             processor.ingest_tiki_clean(clean_df, sid)

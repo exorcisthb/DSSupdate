@@ -3,7 +3,7 @@ import pandas as pd
 import time
 import ast
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # ============================================================
 # CẤU HÌNH
@@ -124,7 +124,7 @@ def load_clean_file_if_yesterday(ngay_hom_nay: str) -> pd.DataFrame:
 # MAIN
 # ============================================================
 def main():
-    time_vn      = datetime.utcnow() + timedelta(hours=7)
+    time_vn      = datetime.now(timezone.utc) + timedelta(hours=7)
     ngay_hom_nay = time_vn.strftime("%Y-%m-%d")
     gio_hom_nay  = time_vn.strftime("%H:%M:%S")
 

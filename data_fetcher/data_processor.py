@@ -4,7 +4,7 @@ Handles Tiki, Lazada, and Shopee data processing.
 """
 
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -61,7 +61,7 @@ class DataProcessor:
             records_processed=records_count,
             status=status,
             error_message=error_msg,
-            ingested_at=datetime.utcnow()
+            ingested_at=datetime.now(timezone.utc)
         )
         self.db.add(log_entry)
         self.db.commit()
@@ -113,7 +113,7 @@ class DataProcessor:
             except:
                 pass
         if file_date is None:
-            file_date = datetime.utcnow()
+            file_date = datetime.now(timezone.utc)
 
         # Check if df has real thumbnail data; if not, fetch from Tiki API
         has_thumb_col = 'thumbnail' in df.columns
@@ -373,7 +373,7 @@ class DataProcessor:
         ).delete()
         
         records_added = 0
-        date_collected = datetime.utcnow()
+        date_collected = datetime.now(timezone.utc)
         
         for _, row in df.iterrows():
             try:
